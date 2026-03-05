@@ -46,7 +46,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wyretech/ellucian-banner.git"
+    "url": "https://github.com/chatt-state/ellucian-banner.git"
   },
   "engines": {
     "node": ">=18.0.0"

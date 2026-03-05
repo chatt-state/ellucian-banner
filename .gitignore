@@ -26,7 +26,3 @@ coverage/
 # Logs
 *.log
 npm-debug.log*
-
-# Task master
-.taskmaster/
-tasks/

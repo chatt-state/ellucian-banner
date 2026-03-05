@@ -1,0 +1,180 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Project Setup and Package Configuration",
+        "description": "Initialize TypeScript project with dual ESM/CJS build, dev dependencies, and base configuration for Node.js 18+",
+        "details": "Create package.json with 'name': 'ellucian-banner', 'type': 'module', Node 18+ engines, scripts: {'build': 'tsup', 'test': 'vitest', 'dev': 'vitest dev'}. Install dev deps: typescript@^5.0, tsup@^8.0, vitest@^1.0, @types/node@^20.0, jsdoc-to-markdown. Configure tsconfig.json (strict, ESM), tsup.config.ts (ESM+CJS+dts, format:'esm,cjs', clean:true). Add .npmignore, README.md skeleton.",
+        "testStrategy": "Verify package.json scripts run without errors, tsup builds successfully, TypeScript compiles without errors",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-03-05T14:55:41.728Z"
+      },
+      {
+        "id": "2",
+        "title": "Error Hierarchy Implementation",
+        "description": "Create comprehensive error class hierarchy for all Banner API error scenarios",
+        "details": "In src/common/errors.ts: Extend Error with statusCode, response body. Implement BannerError (base), AuthError(401/403), NotFoundError(404), RateLimitError(429 with retryAfter), ValidationError(400), ServerError(5xx). Add fromResponse() factory method that parses fetch response and instantiates correct error type. Include JSDoc for all classes.",
+        "testStrategy": "Unit test error constructors, fromResponse() factory with mock responses for each error type (401,403,404,429,400,500), verify properties populated correctly",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "3",
+        "title": "HTTP Client Wrapper with Auth Headers",
+        "description": "Build thin native fetch wrapper with automatic auth header injection and base configuration",
+        "details": "In src/common/http-client.ts: Create HttpClient class with constructor(baseUrl, timeout=30000). Implement request() method that adds auth headers from token provider, configurable timeout, JSON serialization. Add debug logging (DEBUG env var). Support AbortController for timeout. Return {response, data, headers}.",
+        "testStrategy": "Mock fetch, test header injection, timeout cancellation, JSON serialization, debug logging toggles, various HTTP methods",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "4",
+        "title": "Ethos JWT Authentication Module",
+        "description": "Implement API key to JWT token exchange with auto-refresh and in-memory caching",
+        "details": "In src/auth/ethos-auth.ts: Create EthosAuth class with constructor(apiKey, baseUrl='https://integrate.elluciancloud.com', refreshBuffer=30000). Implement getToken(): Promise<string> with 5min expiry check + 30s buffer. POST /auth with Bearer apiKey. Cache token + expiry timestamp. Auto-refresh before expiry. Env var fallback: process.env.ETHOS_API_KEY. Validate inputs, throw AuthError on failure.",
+        "testStrategy": "Mock fetch responses: success JWT, 401, network error. Test cache hit, refresh trigger (mock Date), expiry buffer, env var fallback, error handling",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "Banner Native Basic Auth Implementation",
+        "description": "Add HTTP Basic Auth support for native Banner REST APIs",
+        "details": "In src/auth/banner-auth.ts: Create BannerAuth class with constructor(baseUrl, username, password). Implement getAuthHeader(): string returning base64 'username:password'. Env var support: BANNER_BASE_URL, BANNER_USERNAME, BANNER_PASSWORD. Validate credentials present. Constructor params override env vars.",
+        "testStrategy": "Test base64 encoding correctness, env var fallback, validation errors on missing credentials, header format validation",
+        "priority": "medium",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "Retry Logic and Rate Limiting",
+        "description": "Implement exponential backoff retry for 429/5xx with Retry-After header support",
+        "details": "In src/common/retry.ts: Create retryRequest(fetchFn, maxRetries=3, baseDelay=1000). Exponential backoff: delay *= 2. Parse Retry-After header. Retry only 429/5xx (not other 4xx). Add jitter: delay += Math.random()*100. Throw RateLimitError on final 429. Integrate into HttpClient.request().",
+        "testStrategy": "Mock fetch with delayed responses, test exponential backoff sequence, Retry-After parsing, jitter randomness, no-retry on 400/401, max retries exhaustion",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "Pagination Implementation with Async Generators",
+        "description": "Add offset-based pagination with getPage() and getAll() async generator",
+        "details": "In src/common/pagination.ts: Create Paginator class. getPage(offset, limit=25): {data, totalCount, offset, hasMore}. Parse x-total-count header. getAll(): async function* yields pages until !hasMore. Configurable pageSize. Integrate into HTTP client. Handle empty responses gracefully.",
+        "testStrategy": "Mock paginated responses with x-total-count, test getPage() edge cases (offset=0, last page, empty), getAll() yields correct pages, stops at end, totalCount accuracy",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3",
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Core Student Resource Type Definitions",
+        "description": "Create TypeScript interfaces for Phase 1 EEDM resources (persons v12, students v16, etc.)",
+        "details": "In src/ethos/types/: Define interfaces for persons(v12), students(v16), courses(v4), sections(v16), academic-periods(v16) matching EEDM schemas. Include GUID id: string, common fields (name, dates, etc.). Add ResourceType union. Export all types with JSDoc. Support generic Resource<T>.",
+        "testStrategy": "TypeScript compile check, validate interfaces match expected EEDM structure via sample JSON validation",
+        "priority": "medium",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Ethos Proxy CRUD Client Implementation",
+        "description": "Build typed CRUD operations for Ethos proxy API with EEDM version support",
+        "details": "In src/ethos/client.ts: EthosClient with auth: EthosAuth. Implement get<T>(resource: string, id: string, version?: string), getAll<T>, create<T>, update<T>, delete(id). Set Accept/Content-Type: application/vnd.hedtech.integration.v{VERSION}+json. Default application/json. Use Paginator for list ops. Resource accessors: client.persons.get(id).",
+        "testStrategy": "Mock HTTP responses for each CRUD method, test version headers, pagination integration, typed responses, resource accessor chain (client.ethos.persons.get)",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "6",
+          "7",
+          "8"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "EllucianBanner Client Builder and Integration Tests Setup",
+        "description": "Create main client builder pattern and configure Vitest with 80% coverage",
+        "details": "In src/index.ts: Export EllucianBanner builder with {apiKey, baseUrl?}. client.ethos = new EthosClient(auth). Add banner auth option. Configure vitest.config.ts (coverage: {80% threshold, include: ['src/**']}). Setup integration test suite gated by env vars. GitHub Actions: lint/test/build on PRs.",
+        "testStrategy": "Unit test client instantiation (Ethos+Banner auth), integration tests against test instance (ETHOS_API_KEY env), coverage report >=80%",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "3",
+          "4",
+          "5",
+          "9"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "11",
+        "title": "Unit Test Suite for Core Auth and HTTP Layers",
+        "description": "Achieve 80%+ coverage for authentication, HTTP client, retry, pagination, and error handling",
+        "details": "Create __tests__ for auth/ethos-auth.test.ts (token refresh, cache), common/http-client.test.ts, common/retry.test.ts, common/pagination.test.ts, common/errors.test.ts. Mock fetch globally with vitest. Test all code paths, edge cases, error scenarios. Use vi.mock('node-fetch') equivalent for native fetch.",
+        "testStrategy": "Run vitest --coverage, verify 80%+ coverage on auth/HTTP/retry/pagination modules, all tests pass",
+        "priority": "high",
+        "dependencies": [
+          "2",
+          "3",
+          "4",
+          "6",
+          "7"
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-03-05T14:55:41.731Z",
+      "taskCount": 11,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}
