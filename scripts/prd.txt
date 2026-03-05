@@ -1,0 +1,277 @@
+# Product Requirements Document: ellucian-banner Node.js SDK
+
+## Overview
+
+A comprehensive Node.js/TypeScript SDK (`ellucian-banner` on npm) for the Ellucian Banner API ecosystem. This is the first full-featured Node.js SDK for Banner, covering both the Ethos Integration cloud layer and native Banner REST APIs across all functional domains (Student, Financial Aid, Finance, HR).
+
+No official Node.js SDK exists — only Java (integration-sdk-java) and C# (integration-sdk-csharp) SDKs are available. This library fills that gap for the Node.js ecosystem.
+
+## Target Users
+
+- Higher education IT departments integrating with Ellucian Banner
+- SIS integration developers building custom workflows
+- Third-party vendors connecting to Banner-based institutions
+
+## Technical Requirements
+
+- TypeScript-first, Node.js 18+
+- Native fetch (zero external HTTP dependencies)
+- ESM + CJS dual output via tsup
+- 80%+ unit test coverage (Vitest with mocks)
+- Integration tests against test Banner/Ethos instance
+- Semantic versioning, CHANGELOG.md (keepachangelog.com format)
+- GitHub Actions CI/CD pipeline
+- JSDoc on all public APIs
+
+---
+
+## Phase 1: Core Authentication & Ethos Proxy Client
+
+### 1.1 Authentication Module (`src/auth/`)
+
+#### Ethos API Key -> JWT Authentication
+- POST API key as Bearer token to `{baseUrl}/auth`
+- Receive plain-text JWT (5-minute lifetime)
+- Auto-refresh tokens before expiry (configurable buffer, default 30 seconds)
+- Cache tokens in memory, reuse until near-expiry
+- Support configurable base URL (default: `https://integrate.elluciancloud.com`)
+- Support env var configuration: `ETHOS_API_KEY`, `ETHOS_BASE_URL`
+
+#### Banner Native Basic Authentication
+- HTTP Basic Auth (username:password base64-encoded)
+- Support env var configuration: `BANNER_BASE_URL`, `BANNER_USERNAME`, `BANNER_PASSWORD`
+
+#### Auth Config
+- Constructor params take priority over env vars
+- Validate required fields, throw clear errors on misconfiguration
+
+### 1.2 Shared Infrastructure (`src/common/`)
+
+#### HTTP Client Wrapper
+- Thin wrapper around native fetch
+- Attach auth headers automatically
+- Request/response debug logging (opt-in via config or `DEBUG` env var)
+- Configurable timeout per request
+- Configurable base URL
+
+#### Error Hierarchy
+- `BannerError` (base class, includes statusCode)
+- `AuthError` (401/403)
+- `NotFoundError` (404)
+- `RateLimitError` (429, includes retryAfter)
+- `ValidationError` (400)
+- `ServerError` (5xx)
+- All errors include the response body when available
+
+#### Retry & Rate Limiting
+- Exponential backoff retry for 429 and 5xx responses
+- Configurable max retries (default: 3)
+- Configurable base delay (default: 1000ms)
+- Respect `Retry-After` header when present
+- No retry on 4xx (except 429)
+
+#### Pagination
+- Offset-based pagination using `offset` and `limit` query params
+- Parse `x-total-count` response header for total records
+- `getPage()` method returns `{ data, totalCount, offset, hasMore }`
+- `getAll()` async generator that yields pages automatically
+- Configurable page size (default: 25)
+
+### 1.3 Ethos Integration Proxy Client (`src/ethos/`)
+
+#### Proxy CRUD Operations
+- `GET /api/{resource}/{id}` — fetch single resource by GUID
+- `GET /api/{resource}?offset=N&limit=N` — fetch page of resources
+- `POST /api/{resource}` — create new resource
+- `PUT /api/{resource}/{id}` — update resource by GUID
+- `DELETE /api/{resource}/{id}` — delete resource by GUID
+
+#### EEDM Version Management
+- Set `Accept` header to `application/vnd.hedtech.integration.v{VERSION}+json`
+- Set `Content-Type` to same media type on POST/PUT
+- Default to `application/json` when no version specified
+- Support version parameter on all CRUD methods
+
+#### Core Student Resources (Phase 1 scope)
+- `persons` (v12) — biographical/demographic data
+- `students` (v16) — student-specific attributes
+- `courses` (v4) — course catalog entries
+- `sections` (v16) — course section offerings
+- `academic-periods` (v16) — terms/semesters
+- Each resource gets typed interfaces and a convenience accessor
+
+### 1.4 Client Builder Pattern
+
+Following the Java SDK's builder pattern:
+- `new EllucianBanner({ apiKey })` — create client with Ethos auth
+- `client.ethos` — access Ethos proxy client
+- `client.ethos.persons.get(id)` — typed resource access
+- `client.ethos.persons.getAll()` — async generator for all records
+- Also support raw `client.ethos.get('persons', id)` for any resource
+
+---
+
+## Phase 2: Advanced Ethos Features
+
+### 2.1 Change Notifications (`src/ethos/notifications.ts`)
+
+- `GET /consume?lastProcessedID=N&limit=N` — poll for change events
+- Return array of `ChangeNotification` objects
+- Support `lastProcessedID` for resumable consumption
+- Support `limit` parameter (default: varies by Ethos config)
+- Content type: `application/vnd.hedtech.change-notifications.v2+json`
+- Typed notification payload with operation, resource, contentType, content
+
+### 2.2 GraphQL Client (`src/ethos/graphql.ts`)
+
+- `POST /graphql` with query body
+- Typed query/response support
+- Auth via same JWT token mechanism
+- Support variables in queries
+
+### 2.3 QAPI (Query API) (`src/ethos/qapi.ts`)
+
+- `POST /qapi/{resource}` — POST-based search
+- Support criteria objects in request body
+- Same pagination model as proxy API
+- Useful for filtered/security-scoped queries
+
+### 2.4 Criteria Filtering
+
+- Support `?criteria={"key":"value"}` query parameter on proxy GET
+- Builder pattern for constructing criteria filters:
+  ```typescript
+  client.ethos.persons.filter({ roles: [{ role: "student" }] })
+  ```
+- Named query support: `?namedQuery={"queryName":{"param":"value"}}`
+
+---
+
+## Phase 3: Native Banner REST Clients
+
+### 3.1 Banner Student API Client (`src/banner/student-api.ts`)
+
+- Base path: `/StudentApi/api/`
+- HTTP Basic Auth
+- Typed clients for available endpoints
+- Map responses to TypeScript interfaces
+
+### 3.2 Banner Admin BPAPI Client (`src/banner/admin-bpapi.ts`)
+
+- Base path: `/BannerAdminBPAPI/api/`
+- 1,389+ resources across all domains
+- HTTP Basic Auth
+
+### 3.3 OpenAPI Codegen Pipeline
+
+- Accept Swagger/OpenAPI JSON specs from Banner deployments
+- Generate typed TypeScript client code from specs
+- Output: typed request/response interfaces + client methods
+- CLI tool: `npx ellucian-banner codegen --spec ./swagger.json --output ./src/banner/generated/`
+- Generated code should be human-readable and editable
+
+---
+
+## Phase 4: Domain Resources
+
+Build typed resource accessors for all major EEDM resources across domains. Each resource gets:
+- TypeScript interface matching EEDM schema
+- CRUD methods (get, getAll, create, update, delete as applicable)
+- Convenience filters for common queries
+
+### 4.1 Student Domain
+- `persons` (v12) — biographical data, names, addresses, credentials
+- `students` (v16) — student attributes, types, residencies
+- `courses` (v4) — catalog entries, subjects, levels
+- `sections` (v16) — offerings, schedules, instructors
+- `academic-periods` (v16) — terms, census dates
+- `academic-programs` — programs of study
+- `grades` — grade definitions and student grades
+- `student-academic-credentials` — degrees, certificates
+- `instructional-events` — class meeting patterns
+- `section-registrations` — enrollment records
+- `section-instructors` — faculty assignments
+- `student-holds` — registration holds
+- `admission-applications` — applicant data
+
+### 4.2 Financial Aid Domain
+- `financial-aid-applications` — FAFSA/ISIR data
+- `financial-aid-awards` — award packages
+- `financial-aid-funds` — fund definitions
+- `student-financial-aid-awards` — student-specific awards
+- `financial-aid-academic-progress-statuses` — SAP tracking
+
+### 4.3 Finance Domain
+- `accounting-string-components` — chart of accounts elements
+- `accounting-strings` — full account codes
+- `ledger-activities` — GL transactions
+- `budget-phases` — budget cycle data
+- `accounts-payable-invoices` — AP data
+- `accounts-receivable-invoices` — AR data
+- `purchase-orders` — procurement
+
+### 4.4 HR Domain
+- `employees` — employee records
+- `positions` — position definitions
+- `jobs` — job assignments
+- `pay-scales` — compensation structures
+- `institution-jobs` — institutional employment
+- `leave-plans` — time-off tracking
+- `deduction-types` — payroll deductions
+
+---
+
+## Phase 5: MCP Server (Future / Separate Project)
+
+- Wrap the ellucian-banner library as an MCP server
+- Expose Banner resources as MCP tools
+- Enable AI agents to query and manage Banner data
+- Separate npm package: `ellucian-banner-mcp`
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+- Connection pooling via native fetch (Node.js handles this)
+- Efficient pagination with async generators (no loading entire datasets into memory)
+- Token caching to minimize auth round-trips
+
+### Security
+- Never log auth tokens or credentials at any log level
+- Support environment variable configuration for secrets
+- Validate and sanitize all inputs to prevent injection
+
+### Documentation
+- JSDoc on all public classes, methods, and interfaces
+- README with quick-start, configuration, and usage examples
+- API reference generated from JSDoc
+- Migration guide for users coming from Java/C# SDKs
+
+### Testing Strategy
+- Unit tests: mock fetch, test auth flows, error handling, pagination logic
+- Integration tests: run against CHSCC test Ethos/Banner instance (gated by env vars)
+- Test coverage threshold: 80% statements, branches, functions, lines
+
+### CI/CD
+- GitHub Actions workflow for PR checks (lint, typecheck, test)
+- Automated npm publish on GitHub release tags
+- Separate workflow for integration tests (manual trigger, needs secrets)
+
+### Versioning & Release
+- Semantic versioning (semver)
+- CHANGELOG.md following keepachangelog.com format
+- Git tags for releases
+- npm publish from CI
+
+---
+
+## Success Criteria
+
+1. `npm install ellucian-banner` works and provides TypeScript types
+2. Auth flow successfully obtains and refreshes Ethos JWT tokens
+3. CRUD operations work against Ethos proxy API for all Phase 1 resources
+4. Pagination via async generators handles large datasets efficiently
+5. Error handling provides clear, actionable error messages
+6. 80%+ test coverage across all modules
+7. Zero external runtime dependencies (dev dependencies only)
