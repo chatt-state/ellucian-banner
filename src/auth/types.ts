@@ -8,10 +8,10 @@ export interface EthosAuthConfig {
 }
 
 export interface BannerAuthConfig {
-  /** Banner base URL (e.g., https://banner.example.edu) */
-  baseUrl: string;
-  /** Banner username for Basic Auth */
-  username: string;
-  /** Banner password for Basic Auth */
-  password: string;
+  /** Banner base URL (e.g., https://banner.example.edu). Falls back to BANNER_BASE_URL env var. */
+  baseUrl?: string;
+  /** Banner username for Basic Auth. Falls back to BANNER_USERNAME env var. */
+  username?: string;
+  /** Banner password for Basic Auth. Falls back to BANNER_PASSWORD env var. */
+  password?: string;
 }
