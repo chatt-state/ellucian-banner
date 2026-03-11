@@ -1,10 +1,10 @@
 import { EthosAuth } from "../auth/ethos-auth.js";
 import { HttpClient } from "../common/http-client.js";
+import { parsePaginatedResponse, paginateAll, DEFAULT_PAGE_SIZE } from "../common/pagination.js";
 import type { EthosClientConfig } from "./types.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 
 const DEFAULT_BASE_URL = "https://integrate.elluciancloud.com";
-const DEFAULT_PAGE_SIZE = 25;
 
 /**
  * Client for Ellucian Ethos Integration proxy API.
@@ -53,14 +53,7 @@ export class EthosClient {
       this.eedmHeaders(version),
       options,
     );
-    const data = (await response.json()) as T[];
-    const totalCount = parseInt(response.headers.get("x-total-count") ?? "0", 10);
-    return {
-      data,
-      totalCount,
-      offset,
-      hasMore: offset + data.length < totalCount,
-    };
+    return parsePaginatedResponse<T>(response, offset);
   }
 
   /** Async generator that yields all pages of a resource. */
@@ -70,14 +63,10 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): AsyncGenerator<T[], void, unknown> {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const page = await this.getPage<T>(resource, offset, pageSize, version, options);
-      yield page.data;
-      hasMore = page.hasMore;
-      offset += page.data.length;
-    }
+    yield* paginateAll<T>(
+      (off, lim) => this.getPage<T>(resource, off, lim, version, options),
+      pageSize,
+    );
   }
 
   /** POST (create) a new resource. */
