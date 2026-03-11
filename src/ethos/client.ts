@@ -1,5 +1,5 @@
 import { EthosAuth } from "../auth/ethos-auth.js";
-import { BannerError, NotFoundError, RateLimitError, AuthError } from "../common/errors.js";
+import { fromResponse } from "../common/errors.js";
 import type { EthosClientConfig } from "./types.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 
@@ -137,24 +137,6 @@ export class EthosClient {
 
     if (response.ok) return response;
 
-    this.throwForStatus(response);
-  }
-
-  private throwForStatus(response: Response): never {
-    const { status, statusText } = response;
-    if (status === 401 || status === 403) {
-      throw new AuthError(`${status} ${statusText}`, status);
-    }
-    if (status === 404) {
-      throw new NotFoundError(`Resource not found: ${statusText}`);
-    }
-    if (status === 429) {
-      const retryAfter = parseInt(response.headers.get("retry-after") ?? "", 10);
-      throw new RateLimitError(
-        `Rate limit exceeded: ${statusText}`,
-        isNaN(retryAfter) ? undefined : retryAfter,
-      );
-    }
-    throw new BannerError(`${status} ${statusText}`, status);
+    throw await fromResponse(response);
   }
 }

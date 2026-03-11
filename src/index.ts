@@ -8,5 +8,13 @@ export { EthosClient } from "./ethos/client.js";
 export type { EthosClientConfig } from "./ethos/types.js";
 
 // Common
-export { BannerError, AuthError, NotFoundError, RateLimitError } from "./common/errors.js";
+export {
+  BannerError,
+  AuthError,
+  NotFoundError,
+  RateLimitError,
+  ValidationError,
+  ServerError,
+  fromResponse,
+} from "./common/errors.js";
 export type { PaginatedResponse, RequestOptions } from "./common/types.js";
