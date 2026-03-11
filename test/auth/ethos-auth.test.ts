@@ -58,6 +58,39 @@ describe("EthosAuth", () => {
     expect(fetch).toHaveBeenCalledWith("https://custom.example.com/auth", expect.any(Object));
   });
 
+  it("should fall back to ETHOS_API_KEY env var when apiKey not provided", async () => {
+    const envKey = "env-api-key-99999";
+    vi.stubEnv("ETHOS_API_KEY", envKey);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("env-token", { status: 200 }));
+
+    const auth = new EthosAuth({});
+    const token = await auth.getToken();
+
+    expect(token).toBe("env-token");
+    expect(fetch).toHaveBeenCalledWith("https://integrate.elluciancloud.com/auth", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${envKey}` },
+    });
+  });
+
+  it("should throw AuthError when no apiKey and no env var", () => {
+    vi.stubEnv("ETHOS_API_KEY", "");
+    expect(() => new EthosAuth({})).toThrow(AuthError);
+    expect(() => new EthosAuth({})).toThrow("Ethos API key is required");
+  });
+
+  it("should throw AuthError on empty string apiKey", () => {
+    expect(() => new EthosAuth({ apiKey: "" })).toThrow(AuthError);
+    expect(() => new EthosAuth({ apiKey: "   " })).toThrow(AuthError);
+  });
+
+  it("should throw AuthError on invalid baseUrl", () => {
+    expect(() => new EthosAuth({ apiKey: mockApiKey, baseUrl: "not-a-url" })).toThrow(AuthError);
+    expect(() => new EthosAuth({ apiKey: mockApiKey, baseUrl: "not-a-url" })).toThrow(
+      "Invalid baseUrl",
+    );
+  });
+
   it("should force refresh when called explicitly", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("token-1", { status: 200 }))

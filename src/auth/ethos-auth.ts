@@ -17,7 +17,22 @@ export class EthosAuth {
   private tokenExpiresAt = 0;
 
   constructor(config: EthosAuthConfig) {
-    this.apiKey = config.apiKey;
+    const apiKey = config.apiKey || process.env.ETHOS_API_KEY;
+    if (!apiKey || apiKey.trim().length === 0) {
+      throw new AuthError(
+        "Ethos API key is required. Provide apiKey in config or set ETHOS_API_KEY env var.",
+      );
+    }
+
+    if (config.baseUrl !== undefined) {
+      try {
+        new URL(config.baseUrl);
+      } catch {
+        throw new AuthError(`Invalid baseUrl: ${config.baseUrl}`);
+      }
+    }
+
+    this.apiKey = apiKey;
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
     this.refreshBuffer = config.refreshBuffer ?? DEFAULT_REFRESH_BUFFER;
   }

@@ -1,6 +1,6 @@
 export interface EthosAuthConfig {
-  /** Ethos Integration API key */
-  apiKey: string;
+  /** Ethos Integration API key. Falls back to ETHOS_API_KEY env var if not provided. */
+  apiKey?: string;
   /** Base URL for Ethos Integration (default: https://integrate.elluciancloud.com) */
   baseUrl?: string;
   /** Buffer in seconds before token expiry to trigger refresh (default: 30) */
