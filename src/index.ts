@@ -5,6 +5,7 @@ export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 
 // Ethos Client
 export { EthosClient } from "./ethos/client.js";
+export { EthosResource } from "./ethos/resource.js";
 export type { EthosClientConfig } from "./ethos/types.js";
 
 // EEDM Resource Types
