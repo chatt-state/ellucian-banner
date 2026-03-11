@@ -1,5 +1,5 @@
 import { EthosAuth } from "../auth/ethos-auth.js";
-import { fromResponse } from "../common/errors.js";
+import { HttpClient } from "../common/http-client.js";
 import type { EthosClientConfig } from "./types.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 
@@ -11,12 +11,18 @@ const DEFAULT_PAGE_SIZE = 25;
  * Provides CRUD operations on EEDM resources via the Ethos proxy.
  */
 export class EthosClient {
-  private readonly auth: EthosAuth;
-  private readonly baseUrl: string;
+  private readonly http: HttpClient;
 
   constructor(config: EthosClientConfig) {
-    this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    this.auth = new EthosAuth({ apiKey: config.apiKey, baseUrl: this.baseUrl });
+    const baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    const auth = new EthosAuth({ apiKey: config.apiKey, baseUrl });
+
+    this.http = new HttpClient({
+      baseUrl,
+      authProvider: () => auth.getToken().then((t) => `Bearer ${t}`),
+      timeout: config.timeout,
+      debug: config.debug,
+    });
   }
 
   /** GET a single resource by ID. */
@@ -26,11 +32,9 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.request(
-      "GET",
+    const response = await this.http.get(
       `/api/${resource}/${id}`,
-      version,
-      undefined,
+      this.eedmHeaders(version),
       options,
     );
     return response.json() as Promise<T>;
@@ -44,8 +48,11 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>> {
-    const url = `/api/${resource}?offset=${offset}&limit=${limit}`;
-    const response = await this.request("GET", url, version, undefined, options);
+    const response = await this.http.get(
+      `/api/${resource}?offset=${offset}&limit=${limit}`,
+      this.eedmHeaders(version),
+      options,
+    );
     const data = (await response.json()) as T[];
     const totalCount = parseInt(response.headers.get("x-total-count") ?? "0", 10);
     return {
@@ -80,7 +87,12 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.request("POST", `/api/${resource}`, version, body, options);
+    const response = await this.http.post(
+      `/api/${resource}`,
+      body,
+      this.eedmHeaders(version, true),
+      options,
+    );
     return response.json() as Promise<T>;
   }
 
@@ -92,7 +104,12 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.request("PUT", `/api/${resource}/${id}`, version, body, options);
+    const response = await this.http.put(
+      `/api/${resource}/${id}`,
+      body,
+      this.eedmHeaders(version, true),
+      options,
+    );
     return response.json() as Promise<T>;
   }
 
@@ -103,40 +120,19 @@ export class EthosClient {
     version?: number,
     options?: RequestOptions,
   ): Promise<void> {
-    await this.request("DELETE", `/api/${resource}/${id}`, version, undefined, options);
+    await this.http.delete(`/api/${resource}/${id}`, this.eedmHeaders(version), options);
   }
 
-  private async request(
-    method: string,
-    path: string,
-    version?: number,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<Response> {
-    const token = await this.auth.getToken();
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    };
-
-    if (version) {
-      const mediaType = `application/vnd.hedtech.integration.v${version}+json`;
-      headers["Accept"] = mediaType;
-      if (body) headers["Content-Type"] = mediaType;
-    } else {
-      headers["Accept"] = "application/json";
-      if (body) headers["Content-Type"] = "application/json";
+  /** Build EEDM versioned Accept/Content-Type headers. */
+  private eedmHeaders(version?: number, includeContentType = false): Record<string, string> {
+    if (!version) {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (includeContentType) headers["Content-Type"] = "application/json";
+      return headers;
     }
-
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: options?.signal,
-    });
-
-    if (response.ok) return response;
-
-    throw await fromResponse(response);
+    const mediaType = `application/vnd.hedtech.integration.v${version}+json`;
+    const headers: Record<string, string> = { Accept: mediaType };
+    if (includeContentType) headers["Content-Type"] = mediaType;
+    return headers;
   }
 }

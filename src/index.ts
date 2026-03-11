@@ -7,7 +7,50 @@ export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 export { EthosClient } from "./ethos/client.js";
 export type { EthosClientConfig } from "./ethos/types.js";
 
-// Common
+// EEDM Resource Types
+export type {
+  // Common
+  AcademicLevelRef,
+  CourseLevelRef,
+  Credit,
+  CreditCategory,
+  EedmMetadata,
+  GradeSchemeRef,
+  GuidRef,
+  InstructionalMethodRef,
+  NamedRef,
+  OwningInstitutionUnit,
+  // Persons (v12)
+  Person,
+  PersonAddress,
+  PersonAlternativeCredential,
+  PersonCredential,
+  PersonEmail,
+  PersonName,
+  PersonPhone,
+  PersonRole,
+  // Students (v16)
+  Student,
+  StudentLevelClassification,
+  StudentResidency,
+  StudentType,
+  // Courses (v4)
+  Course,
+  CourseSubject,
+  // Sections (v16)
+  Section,
+  SectionTitle,
+  SectionStatus,
+  // Academic Periods (v16)
+  AcademicPeriod,
+  AcademicPeriodCategory,
+} from "./ethos/types/index.js";
+
+// HTTP Client
+export { HttpClient } from "./common/http-client.js";
+export type { AuthProvider, HttpClientConfig } from "./common/http-client.js";
+
+// Errors
 export {
   BannerError,
   AuthError,
