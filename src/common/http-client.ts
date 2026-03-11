@@ -7,6 +7,8 @@
  */
 
 import { fromResponse } from "./errors.js";
+import { withRetry } from "./retry.js";
+import type { RetryOptions } from "./retry.js";
 import type { RequestOptions } from "./types.js";
 
 /** Function that returns an Authorization header value (e.g., "Bearer xxx" or "Basic xxx"). */
@@ -22,6 +24,8 @@ export interface HttpClientConfig {
   timeout?: number;
   /** Enable debug logging to stderr (default: false). Respects DEBUG env var. */
   debug?: boolean;
+  /** Enable retry with exponential backoff. Pass true for defaults, or RetryOptions to customize. Disabled by default. */
+  retry?: boolean | RetryOptions;
 }
 
 /**
@@ -36,12 +40,14 @@ export class HttpClient {
   private readonly authProvider: AuthProvider;
   private readonly timeout: number;
   private readonly debug: boolean;
+  private readonly retryOptions: RetryOptions | undefined;
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.authProvider = config.authProvider;
     this.timeout = config.timeout ?? 30_000;
     this.debug = config.debug ?? !!process.env["DEBUG"];
+    this.retryOptions = config.retry === true ? {} : config.retry || undefined;
   }
 
   /** Send a GET request. */
@@ -108,13 +114,18 @@ export class HttpClient {
 
     this.log(method, url);
 
-    try {
-      const response = await fetch(url, {
+    const doFetch = () =>
+      fetch(url, {
         method,
         headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
+
+    try {
+      const response = this.retryOptions
+        ? await withRetry(doFetch, this.retryOptions, options?.signal)
+        : await doFetch();
 
       this.log(method, url, response.status);
 

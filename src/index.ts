@@ -50,6 +50,10 @@ export type {
 export { HttpClient } from "./common/http-client.js";
 export type { AuthProvider, HttpClientConfig } from "./common/http-client.js";
 
+// Retry
+export { withRetry } from "./common/retry.js";
+export type { RetryOptions } from "./common/retry.js";
+
 // Errors
 export {
   BannerError,
