@@ -104,4 +104,78 @@ describe("EthosAuth", () => {
     expect(token2).toBe("token-2");
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+
+  it("should auto-refresh when cached token has expired", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("token-1", { status: 200 }))
+      .mockResolvedValueOnce(new Response("token-2", { status: 200 }));
+
+    const auth = new EthosAuth({ apiKey: mockApiKey });
+    await auth.getToken(); // caches token-1
+
+    // Advance time past the token lifetime (5min - 30s buffer = 270s)
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 271_000);
+
+    const token2 = await auth.getToken();
+    expect(token2).toBe("token-2");
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("should respect custom refreshBuffer", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("token-1", { status: 200 }))
+      .mockResolvedValueOnce(new Response("token-2", { status: 200 }));
+
+    // refreshBuffer=60 means token is valid for 300-60=240 seconds
+    const auth = new EthosAuth({ apiKey: mockApiKey, refreshBuffer: 60 });
+    await auth.getToken();
+
+    vi.useFakeTimers();
+    // At 241s the token should be considered expired
+    vi.setSystemTime(Date.now() + 241_000);
+
+    const token2 = await auth.getToken();
+    expect(token2).toBe("token-2");
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("should return cached token when not yet expired", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("cached-token", { status: 200 }),
+    );
+
+    const auth = new EthosAuth({ apiKey: mockApiKey });
+    await auth.getToken();
+
+    vi.useFakeTimers();
+    // 100s is well within the 270s window
+    vi.setSystemTime(Date.now() + 100_000);
+
+    const token = await auth.getToken();
+    expect(token).toBe("cached-token");
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  it("should include status code in AuthError on failed auth", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
+    );
+
+    const auth = new EthosAuth({ apiKey: "bad-key" });
+    try {
+      await auth.getToken();
+      expect.unreachable("Should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AuthError);
+      expect((err as AuthError).statusCode).toBe(403);
+      expect((err as AuthError).message).toContain("403");
+    }
+  });
 });

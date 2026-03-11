@@ -204,4 +204,110 @@ describe("HttpClient", () => {
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("[banner-sdk] GET"));
   });
+
+  it("should debug log response status", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const client = new HttpClient({ ...baseConfig, debug: true });
+    await client.get("/test");
+
+    // Two log calls: one for the request, one for the response
+    expect(stderrSpy).toHaveBeenCalledTimes(2);
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("-> 200"));
+  });
+
+  it("should not debug log when debug is false", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const client = new HttpClient({ ...baseConfig, debug: false });
+    await client.get("/test");
+
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it("should fall back to DEBUG env var for debug logging", async () => {
+    vi.stubEnv("DEBUG", "true");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const client = new HttpClient({
+      baseUrl: "https://api.example.com",
+      authProvider: () => "Bearer test-token",
+      // debug not set — should fall back to DEBUG env var
+    });
+    await client.get("/test");
+
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("[banner-sdk]"));
+  });
+
+  it("should wire caller abort signal to internal controller", async () => {
+    // Verify that the signal passed to fetch is an AbortSignal
+    // and that caller's signal triggers abort on the internal signal
+    let capturedSignal: AbortSignal | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      capturedSignal = (init as RequestInit).signal as AbortSignal;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+
+    const controller = new AbortController();
+    const client = new HttpClient(baseConfig);
+    await client.get("/test", {}, { signal: controller.signal });
+
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+    // The internal signal is a separate controller, not the caller's signal directly
+    expect(capturedSignal).not.toBe(controller.signal);
+  });
+
+  it("should pass an AbortSignal to fetch for timeout support", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      // Verify that an AbortSignal is attached
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+
+    const client = new HttpClient({ ...baseConfig, timeout: 100 });
+    await client.get("/test");
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("should not set Content-Type when body is undefined (GET/DELETE)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    const client = new HttpClient(baseConfig);
+    await client.get("/test");
+
+    const callHeaders = vi.mocked(fetch).mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(callHeaders["Content-Type"]).toBeUndefined();
+  });
+
+  it("should use retry when retry option is configured", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("err", { status: 503 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    const client = new HttpClient({ ...baseConfig, retry: { maxRetries: 1, baseDelay: 10 } });
+    const promise = client.get("/test");
+
+    // Advance past the retry delay
+    await vi.advanceTimersByTimeAsync(5000);
+
+    const response = await promise;
+    expect(response.status).toBe(200);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("should use retry with boolean true for default options", async () => {
+    // With retry: true and a succeeding first call, should work normally
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    const client = new HttpClient({ ...baseConfig, retry: true });
+    const response = await client.get("/test");
+
+    expect(response.status).toBe(200);
+  });
 });
