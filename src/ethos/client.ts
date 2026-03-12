@@ -2,6 +2,10 @@ import { EthosAuth } from "../auth/ethos-auth.js";
 import { HttpClient } from "../common/http-client.js";
 import { parsePaginatedResponse, paginateAll, DEFAULT_PAGE_SIZE } from "../common/pagination.js";
 import { EthosResource } from "./resource.js";
+import { EthosNotifications } from "./notifications.js";
+import { EthosQapi } from "./qapi.js";
+import { EthosGraphQL } from "./graphql.js";
+import { buildCriteriaParam, buildNamedQueryParam } from "./criteria.js";
 import type { EthosClientConfig } from "./types.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 import type { Person } from "./types/persons.js";
@@ -29,6 +33,12 @@ export class EthosClient {
   readonly sections: EthosResource<Section>;
   /** Pre-bound accessor for academic-periods (EEDM v16). */
   readonly academicPeriods: EthosResource<AcademicPeriod>;
+  /** Change notification consumer. */
+  readonly notifications: EthosNotifications;
+  /** QAPI (POST-based search) client. */
+  readonly qapi: EthosQapi;
+  /** GraphQL query client. */
+  readonly graphql: EthosGraphQL;
 
   constructor(config: EthosClientConfig) {
     const baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -47,6 +57,9 @@ export class EthosClient {
     this.courses = new EthosResource<Course>(this, "courses", 4);
     this.sections = new EthosResource<Section>(this, "sections", 16);
     this.academicPeriods = new EthosResource<AcademicPeriod>(this, "academic-periods", 16);
+    this.notifications = new EthosNotifications(this.http);
+    this.qapi = new EthosQapi(this.http);
+    this.graphql = new EthosGraphQL(this.http);
   }
 
   /** Create a custom resource accessor for any EEDM resource. */
@@ -139,6 +152,43 @@ export class EthosClient {
     options?: RequestOptions,
   ): Promise<void> {
     await this.http.delete(`/api/${resource}/${id}`, this.eedmHeaders(version), options);
+  }
+
+  /** GET resources filtered by criteria. */
+  async filter<T = unknown>(
+    resource: string,
+    criteria: Record<string, unknown>,
+    offset = 0,
+    limit = DEFAULT_PAGE_SIZE,
+    version?: number,
+    options?: RequestOptions,
+  ): Promise<PaginatedResponse<T>> {
+    const query = `${buildCriteriaParam(criteria)}&offset=${offset}&limit=${limit}`;
+    const response = await this.http.get(
+      `/api/${resource}?${query}`,
+      this.eedmHeaders(version),
+      options,
+    );
+    return parsePaginatedResponse<T>(response, offset);
+  }
+
+  /** GET resources using a named query. */
+  async namedQuery<T = unknown>(
+    resource: string,
+    queryName: string,
+    params: Record<string, unknown>,
+    offset = 0,
+    limit = DEFAULT_PAGE_SIZE,
+    version?: number,
+    options?: RequestOptions,
+  ): Promise<PaginatedResponse<T>> {
+    const query = `${buildNamedQueryParam(queryName, params)}&offset=${offset}&limit=${limit}`;
+    const response = await this.http.get(
+      `/api/${resource}?${query}`,
+      this.eedmHeaders(version),
+      options,
+    );
+    return parsePaginatedResponse<T>(response, offset);
   }
 
   /** Build EEDM versioned Accept/Content-Type headers. */

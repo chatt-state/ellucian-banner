@@ -6,6 +6,12 @@ export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 // Ethos Client
 export { EthosClient } from "./ethos/client.js";
 export { EthosResource } from "./ethos/resource.js";
+export { EthosNotifications } from "./ethos/notifications.js";
+export type { ChangeNotification, ConsumeOptions } from "./ethos/notifications.js";
+export { EthosQapi } from "./ethos/qapi.js";
+export { EthosGraphQL } from "./ethos/graphql.js";
+export type { GraphQLRequest, GraphQLResponse, GraphQLError } from "./ethos/graphql.js";
+export { buildCriteriaParam, buildNamedQueryParam } from "./ethos/criteria.js";
 export type { EthosClientConfig } from "./ethos/types.js";
 
 // EEDM Resource Types
