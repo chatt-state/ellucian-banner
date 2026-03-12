@@ -53,6 +53,10 @@ export type {
   AcademicPeriodCategory,
 } from "./ethos/types/index.js";
 
+// Banner Client
+export { BannerClient, BannerApiClient } from "./banner/client.js";
+export type { BannerClientConfig } from "./banner/client.js";
+
 // HTTP Client
 export { HttpClient } from "./common/http-client.js";
 export type { AuthProvider, HttpClientConfig } from "./common/http-client.js";
