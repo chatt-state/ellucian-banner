@@ -13,6 +13,14 @@ import type { Student } from "./types/students.js";
 import type { Course } from "./types/courses.js";
 import type { Section } from "./types/sections.js";
 import type { AcademicPeriod } from "./types/academic-periods.js";
+import type { Grade } from "./types/grades.js";
+import type { GradeScheme } from "./types/grades.js";
+import type { SectionRegistration } from "./types/section-registrations.js";
+import type { InstructionalEvent } from "./types/instructional-events.js";
+import type { StudentAcademicCredential } from "./types/student-academic-credentials.js";
+import type { FinancialAidApplication, FinancialAidAward, FinancialAidFund } from "./types/financial-aid.js";
+import type { AccountingString, LedgerActivity } from "./types/finance.js";
+import type { Employee, Position, Job } from "./types/employees.js";
 
 const DEFAULT_BASE_URL = "https://integrate.elluciancloud.com";
 
@@ -33,6 +41,32 @@ export class EthosClient {
   readonly sections: EthosResource<Section>;
   /** Pre-bound accessor for academic-periods (EEDM v16). */
   readonly academicPeriods: EthosResource<AcademicPeriod>;
+  /** Pre-bound accessor for grades (EEDM v6). */
+  readonly grades: EthosResource<Grade>;
+  /** Pre-bound accessor for grade-schemes (EEDM v6). */
+  readonly gradeSchemes: EthosResource<GradeScheme>;
+  /** Pre-bound accessor for section-registrations (EEDM v16). */
+  readonly sectionRegistrations: EthosResource<SectionRegistration>;
+  /** Pre-bound accessor for instructional-events (EEDM v11). */
+  readonly instructionalEvents: EthosResource<InstructionalEvent>;
+  /** Pre-bound accessor for student-academic-credentials (EEDM v1). */
+  readonly studentAcademicCredentials: EthosResource<StudentAcademicCredential>;
+  /** Pre-bound accessor for financial-aid-applications (EEDM v9). */
+  readonly financialAidApplications: EthosResource<FinancialAidApplication>;
+  /** Pre-bound accessor for financial-aid-awards. */
+  readonly financialAidAwards: EthosResource<FinancialAidAward>;
+  /** Pre-bound accessor for financial-aid-funds. */
+  readonly financialAidFunds: EthosResource<FinancialAidFund>;
+  /** Pre-bound accessor for accounting-strings (EEDM v12). */
+  readonly accountingStrings: EthosResource<AccountingString>;
+  /** Pre-bound accessor for ledger-activities. */
+  readonly ledgerActivities: EthosResource<LedgerActivity>;
+  /** Pre-bound accessor for employees (EEDM v12). */
+  readonly employees: EthosResource<Employee>;
+  /** Pre-bound accessor for positions (EEDM v12). */
+  readonly positions: EthosResource<Position>;
+  /** Pre-bound accessor for jobs (EEDM v12). */
+  readonly jobs: EthosResource<Job>;
   /** Change notification consumer. */
   readonly notifications: EthosNotifications;
   /** QAPI (POST-based search) client. */
@@ -57,6 +91,19 @@ export class EthosClient {
     this.courses = new EthosResource<Course>(this, "courses", 4);
     this.sections = new EthosResource<Section>(this, "sections", 16);
     this.academicPeriods = new EthosResource<AcademicPeriod>(this, "academic-periods", 16);
+    this.grades = new EthosResource<Grade>(this, "grades", 6);
+    this.gradeSchemes = new EthosResource<GradeScheme>(this, "grade-schemes", 6);
+    this.sectionRegistrations = new EthosResource<SectionRegistration>(this, "section-registrations", 16);
+    this.instructionalEvents = new EthosResource<InstructionalEvent>(this, "instructional-events", 11);
+    this.studentAcademicCredentials = new EthosResource<StudentAcademicCredential>(this, "student-academic-credentials", 1);
+    this.financialAidApplications = new EthosResource<FinancialAidApplication>(this, "financial-aid-applications", 9);
+    this.financialAidAwards = new EthosResource<FinancialAidAward>(this, "financial-aid-awards");
+    this.financialAidFunds = new EthosResource<FinancialAidFund>(this, "financial-aid-funds");
+    this.accountingStrings = new EthosResource<AccountingString>(this, "accounting-strings", 12);
+    this.ledgerActivities = new EthosResource<LedgerActivity>(this, "ledger-activities");
+    this.employees = new EthosResource<Employee>(this, "employees", 12);
+    this.positions = new EthosResource<Position>(this, "positions", 12);
+    this.jobs = new EthosResource<Job>(this, "jobs", 12);
     this.notifications = new EthosNotifications(this.http);
     this.qapi = new EthosQapi(this.http);
     this.graphql = new EthosGraphQL(this.http);

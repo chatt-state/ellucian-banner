@@ -70,3 +70,56 @@ export type {
   AcademicPeriodCategory,
   AcademicPeriodRegistration,
 } from "./academic-periods.js";
+
+// Grades (v6)
+export type { Grade, GradeScheme, GradeValue } from "./grades.js";
+
+// Section Registrations (v16)
+export type {
+  SectionRegistration,
+  RegistrationApproval,
+  RegistrationGrade,
+  RegistrationInvolvement,
+  RegistrationStatus,
+} from "./section-registrations.js";
+
+// Instructional Events (v11)
+export type {
+  InstructionalEvent,
+  InstructionalEventInstructor,
+  InstructionalEventLocation,
+  InstructionalEventRecurrence,
+  RecurrenceTimePeriod,
+  RepeatRule,
+  RepeatRuleEnds,
+} from "./instructional-events.js";
+
+// Student Academic Credentials (v1)
+export type {
+  StudentAcademicCredential,
+  CredentialDiscipline,
+  CredentialRecognition,
+} from "./student-academic-credentials.js";
+
+// Financial Aid
+export type {
+  FinancialAidApplication,
+  FinancialAidAward,
+  FinancialAidFund,
+} from "./financial-aid.js";
+
+// Finance
+export type {
+  AccountingString,
+  AccountingStringComponent,
+  CurrencyAmount,
+  LedgerActivity,
+} from "./finance.js";
+
+// HR — Employees, Positions, Jobs (v12)
+export type {
+  Employee,
+  EmployeeContract,
+  Position,
+  Job,
+} from "./employees.js";

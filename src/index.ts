@@ -51,6 +51,37 @@ export type {
   // Academic Periods (v16)
   AcademicPeriod,
   AcademicPeriodCategory,
+  // Grades (v6)
+  Grade,
+  GradeScheme,
+  GradeValue,
+  // Section Registrations (v16)
+  SectionRegistration,
+  RegistrationApproval,
+  RegistrationGrade,
+  RegistrationStatus,
+  // Instructional Events (v11)
+  InstructionalEvent,
+  InstructionalEventInstructor,
+  InstructionalEventLocation,
+  // Student Academic Credentials (v1)
+  StudentAcademicCredential,
+  CredentialDiscipline,
+  CredentialRecognition,
+  // Financial Aid
+  FinancialAidApplication,
+  FinancialAidAward,
+  FinancialAidFund,
+  // Finance
+  AccountingString,
+  AccountingStringComponent,
+  CurrencyAmount,
+  LedgerActivity,
+  // HR
+  Employee,
+  EmployeeContract,
+  Position,
+  Job,
 } from "./ethos/types/index.js";
 
 // Banner Client

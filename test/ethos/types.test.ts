@@ -5,6 +5,19 @@ import type {
   Course,
   Section,
   AcademicPeriod,
+  Grade,
+  GradeScheme,
+  SectionRegistration,
+  InstructionalEvent,
+  StudentAcademicCredential,
+  FinancialAidApplication,
+  FinancialAidAward,
+  FinancialAidFund,
+  AccountingString,
+  LedgerActivity,
+  Employee,
+  Position,
+  Job,
 } from "../../src/ethos/types/index.js";
 
 describe("EEDM Type Definitions", () => {
@@ -277,6 +290,326 @@ describe("EEDM Type Definitions", () => {
       };
 
       expect(period.title).toBe("Test Period");
+    });
+  });
+
+  describe("Grade (v6)", () => {
+    it("should accept a valid grade object", () => {
+      const grade: Grade = {
+        id: "a1b2c3d4-0000-0000-0000-000000000001",
+        scheme: { id: "guid-letter-scheme" },
+        grade: { value: "A", description: "Excellent" },
+        qualityPoints: 4.0,
+        creditsIncluded: true,
+        attemptedCreditsIncluded: true,
+        completedCreditsIncluded: true,
+        priority: 1,
+      };
+
+      expect(grade.grade?.value).toBe("A");
+      expect(grade.qualityPoints).toBe(4.0);
+    });
+
+    it("should accept a minimal grade object", () => {
+      const grade: Grade = {
+        id: "00000000-0000-0000-0000-000000000000",
+        scheme: { id: "guid-scheme" },
+      };
+
+      expect(grade.scheme.id).toBeDefined();
+    });
+  });
+
+  describe("GradeScheme (v6)", () => {
+    it("should accept a valid grade scheme object", () => {
+      const scheme: GradeScheme = {
+        id: "a1b2c3d4-0000-0000-0000-000000000002",
+        code: "UG",
+        title: "Undergraduate Letter Grades",
+        description: "Standard undergraduate grading scheme.",
+        academicLevel: { id: "guid-undergrad" },
+        startOn: "2000-01-01",
+      };
+
+      expect(scheme.code).toBe("UG");
+      expect(scheme.title).toBe("Undergraduate Letter Grades");
+    });
+
+    it("should accept a minimal grade scheme object", () => {
+      const scheme: GradeScheme = {
+        id: "00000000-0000-0000-0000-000000000000",
+      };
+
+      expect(scheme.id).toBeDefined();
+    });
+  });
+
+  describe("SectionRegistration (v16)", () => {
+    it("should accept a valid section registration object", () => {
+      const reg: SectionRegistration = {
+        id: "b1c2d3e4-0000-0000-0000-000000000001",
+        registrant: { id: "guid-person" },
+        section: { id: "guid-section" },
+        status: { registrationStatus: "registered" },
+        credit: { measure: "credit", minimum: 3, maximum: 3 },
+        gradeScheme: { id: "guid-scheme" },
+        grades: [
+          { type: "final", grade: { id: "guid-grade-a" }, submittedOn: "2024-12-15" },
+        ],
+        involvement: { startOn: "2024-08-19", endOn: "2024-12-13" },
+        academicLevel: { id: "guid-undergrad" },
+        originallyRegisteredOn: "2024-04-01",
+      };
+
+      expect(reg.registrant.id).toBe("guid-person");
+      expect(reg.status?.registrationStatus).toBe("registered");
+      expect(reg.grades).toHaveLength(1);
+    });
+
+    it("should accept a minimal section registration object", () => {
+      const reg: SectionRegistration = {
+        id: "00000000-0000-0000-0000-000000000000",
+        registrant: { id: "guid-person" },
+        section: { id: "guid-section" },
+      };
+
+      expect(reg.section.id).toBeDefined();
+    });
+  });
+
+  describe("InstructionalEvent (v11)", () => {
+    it("should accept a valid instructional event object", () => {
+      const event: InstructionalEvent = {
+        id: "c1d2e3f4-0000-0000-0000-000000000001",
+        section: { id: "guid-section" },
+        instructionalMethod: { id: "guid-lecture" },
+        recurrence: {
+          repeatRule: {
+            type: "weekly",
+            daysOfWeek: ["monday", "wednesday", "friday"],
+          },
+        },
+        locations: [{ location: { id: "guid-room-101", title: "Room 101" } }],
+        instructors: [
+          {
+            instructor: { id: "guid-instructor" },
+            instructorRole: "primary",
+            workLoadPercentage: 100,
+          },
+        ],
+        startOn: "08:00:00",
+        endOn: "08:50:00",
+      };
+
+      expect(event.section.id).toBe("guid-section");
+      expect(event.instructors).toHaveLength(1);
+      expect(event.recurrence?.repeatRule?.daysOfWeek).toHaveLength(3);
+    });
+
+    it("should accept a minimal instructional event object", () => {
+      const event: InstructionalEvent = {
+        id: "00000000-0000-0000-0000-000000000000",
+        section: { id: "guid-section" },
+      };
+
+      expect(event.section.id).toBeDefined();
+    });
+  });
+
+  describe("StudentAcademicCredential (v1)", () => {
+    it("should accept a valid student academic credential object", () => {
+      const cred: StudentAcademicCredential = {
+        id: "d1e2f3a4-0000-0000-0000-000000000001",
+        student: { id: "guid-student" },
+        credential: { id: "guid-bs-degree" },
+        earnedOn: "2024-05-15",
+        academicLevel: { id: "guid-undergrad" },
+        academicPeriod: { id: "guid-spring-2024" },
+        disciplines: [
+          { discipline: { id: "guid-cs" }, type: "major" },
+          { discipline: { id: "guid-math" }, type: "minor" },
+        ],
+        recognitions: [{ type: "honors", detail: { id: "guid-magna" } }],
+        cumulativeGradePointAverage: 3.75,
+      };
+
+      expect(cred.student.id).toBe("guid-student");
+      expect(cred.disciplines).toHaveLength(2);
+      expect(cred.cumulativeGradePointAverage).toBe(3.75);
+    });
+
+    it("should accept a minimal student academic credential object", () => {
+      const cred: StudentAcademicCredential = {
+        id: "00000000-0000-0000-0000-000000000000",
+        student: { id: "guid-student" },
+      };
+
+      expect(cred.student.id).toBeDefined();
+    });
+  });
+
+  describe("FinancialAidApplication (v9)", () => {
+    it("should accept a valid financial aid application object", () => {
+      const app: FinancialAidApplication = {
+        id: "e1f2a3b4-0000-0000-0000-000000000001",
+        applicant: { id: "guid-person" },
+        aidYear: { id: "guid-2024-2025" },
+        methodology: "federal",
+        expectedFamilyContribution: 5000,
+        totalEstimatedCostOfAttendance: 25000,
+        totalNeed: 20000,
+      };
+
+      expect(app.applicant.id).toBe("guid-person");
+      expect(app.expectedFamilyContribution).toBe(5000);
+    });
+
+    it("should accept a minimal financial aid application object", () => {
+      const app: FinancialAidApplication = {
+        id: "00000000-0000-0000-0000-000000000000",
+        applicant: { id: "guid-person" },
+        aidYear: { id: "guid-year" },
+      };
+
+      expect(app.aidYear.id).toBeDefined();
+    });
+  });
+
+  describe("FinancialAidAward", () => {
+    it("should accept a valid financial aid award object", () => {
+      const award: FinancialAidAward = {
+        id: "f1a2b3c4-0000-0000-0000-000000000001",
+        student: { id: "guid-student" },
+        aidYear: { id: "guid-2024-2025" },
+        fund: { id: "guid-pell-grant" },
+        amount: 6895,
+        status: "accepted",
+      };
+
+      expect(award.amount).toBe(6895);
+      expect(award.status).toBe("accepted");
+    });
+  });
+
+  describe("FinancialAidFund", () => {
+    it("should accept a valid financial aid fund object", () => {
+      const fund: FinancialAidFund = {
+        id: "a2b3c4d5-0000-0000-0000-000000000001",
+        code: "PELL",
+        title: "Federal Pell Grant",
+        category: "grant",
+        source: "federal",
+      };
+
+      expect(fund.code).toBe("PELL");
+      expect(fund.category).toBe("grant");
+    });
+  });
+
+  describe("AccountingString (v12)", () => {
+    it("should accept a valid accounting string object", () => {
+      const acctStr: AccountingString = {
+        id: "b2c3d4e5-0000-0000-0000-000000000001",
+        accountingString: "11-00-1000-50000",
+        description: "General fund operating account",
+        components: [
+          { id: "comp-1", value: "11", type: "fund" },
+          { id: "comp-2", value: "1000", type: "organization" },
+        ],
+        status: "available",
+      };
+
+      expect(acctStr.accountingString).toBe("11-00-1000-50000");
+      expect(acctStr.components).toHaveLength(2);
+    });
+  });
+
+  describe("LedgerActivity", () => {
+    it("should accept a valid ledger activity object", () => {
+      const activity: LedgerActivity = {
+        id: "c3d4e5f6-0000-0000-0000-000000000001",
+        accountingString: { id: "guid-acct-string" },
+        fiscalYear: { id: "guid-fy-2024" },
+        type: "actual",
+        transactionDate: "2024-03-15",
+        amount: { value: 1500.0, currency: "USD" },
+        description: "Tuition revenue posting",
+      };
+
+      expect(activity.type).toBe("actual");
+      expect(activity.amount?.value).toBe(1500.0);
+    });
+  });
+
+  describe("Employee (v12)", () => {
+    it("should accept a valid employee object", () => {
+      const emp: Employee = {
+        id: "d4e5f6a7-0000-0000-0000-000000000001",
+        person: { id: "guid-person" },
+        status: "active",
+        contract: { type: "fullTime" },
+        startOn: "2020-01-15",
+        homeDepartment: { id: "guid-cs-dept" },
+      };
+
+      expect(emp.person.id).toBe("guid-person");
+      expect(emp.status).toBe("active");
+    });
+
+    it("should accept a minimal employee object", () => {
+      const emp: Employee = {
+        id: "00000000-0000-0000-0000-000000000000",
+        person: { id: "guid-person" },
+      };
+
+      expect(emp.person.id).toBeDefined();
+    });
+  });
+
+  describe("Position (v12)", () => {
+    it("should accept a valid position object", () => {
+      const pos: Position = {
+        id: "e5f6a7b8-0000-0000-0000-000000000001",
+        code: "PROF-CS-001",
+        title: "Associate Professor of Computer Science",
+        department: { id: "guid-cs-dept" },
+        status: "active",
+        exemptionType: "exempt",
+        startOn: "2015-08-01",
+      };
+
+      expect(pos.code).toBe("PROF-CS-001");
+      expect(pos.title).toBe("Associate Professor of Computer Science");
+    });
+  });
+
+  describe("Job (v12)", () => {
+    it("should accept a valid job object", () => {
+      const job: Job = {
+        id: "f6a7b8c9-0000-0000-0000-000000000001",
+        person: { id: "guid-person" },
+        position: { id: "guid-position" },
+        department: { id: "guid-cs-dept" },
+        title: "Associate Professor",
+        status: "active",
+        primary: true,
+        startOn: "2020-08-15",
+        fullTimeEquivalency: 1.0,
+        payClass: "salary",
+      };
+
+      expect(job.person.id).toBe("guid-person");
+      expect(job.primary).toBe(true);
+      expect(job.fullTimeEquivalency).toBe(1.0);
+    });
+
+    it("should accept a minimal job object", () => {
+      const job: Job = {
+        id: "00000000-0000-0000-0000-000000000000",
+        person: { id: "guid-person" },
+      };
+
+      expect(job.person.id).toBeDefined();
     });
   });
 });
