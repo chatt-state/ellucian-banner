@@ -110,3 +110,15 @@ export {
   fromResponse,
 } from "./common/errors.js";
 export type { PaginatedResponse, RequestOptions } from "./common/types.js";
+
+// Codegen
+export { parseSpec } from "./codegen/parser.js";
+export type {
+  ParsedSpec,
+  ParsedEndpoint,
+  ParsedParameter,
+  ParsedSchema,
+  ParsedSchemaProperty,
+} from "./codegen/parser.js";
+export { generateClient } from "./codegen/generator.js";
+export type { GeneratedFiles } from "./codegen/generator.js";

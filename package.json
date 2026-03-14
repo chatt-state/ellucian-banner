@@ -18,6 +18,9 @@
       }
     }
   },
+  "bin": {
+    "ellucian-banner-codegen": "./dist/codegen/cli.js"
+  },
   "files": [
     "dist"
   ],
