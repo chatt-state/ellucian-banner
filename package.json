@@ -1,7 +1,7 @@
 {
   "name": "ellucian-banner",
   "version": "0.1.0",
-  "description": "Node.js SDK for Ellucian Banner — Ethos Integration and native Banner REST APIs",
+  "description": "Node.js/TypeScript SDK for Ellucian Banner — Ethos Integration and native Banner REST APIs",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -22,7 +22,9 @@
     "ellucian-banner-codegen": "./dist/codegen/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -39,13 +41,12 @@
     "ellucian",
     "banner",
     "ethos",
-    "higher-education",
-    "sis",
-    "student-information-system",
     "eedm",
-    "api-client"
+    "higher-education",
+    "sdk",
+    "typescript"
   ],
-  "author": "Wyre Tech",
+  "author": "Chatt State <dev@chattstate.edu>",
   "license": "MIT",
   "repository": {
     "type": "git",
