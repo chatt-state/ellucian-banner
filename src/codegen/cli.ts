@@ -94,7 +94,9 @@ async function main(): Promise<void> {
   await writeFile(resolve(resolvedOutput, "types.ts"), files.types, "utf-8");
   await writeFile(resolve(resolvedOutput, "client.ts"), files.client, "utf-8");
 
-  console.log(`Generated ${parsed.endpoints.length} endpoint(s) and ${parsed.schemas.size} schema(s)`);
+  console.log(
+    `Generated ${parsed.endpoints.length} endpoint(s) and ${parsed.schemas.size} schema(s)`,
+  );
   console.log(`  → ${resolve(resolvedOutput, "types.ts")}`);
   console.log(`  → ${resolve(resolvedOutput, "client.ts")}`);
 }

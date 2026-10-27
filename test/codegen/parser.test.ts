@@ -30,9 +30,7 @@ const SWAGGER_2_SPEC = {
         operationId: "listStudents",
         summary: "List all students",
         tags: ["students"],
-        parameters: [
-          { name: "limit", in: "query", type: "integer", required: false },
-        ],
+        parameters: [{ name: "limit", in: "query", type: "integer", required: false }],
         responses: {
           "200": {
             schema: { type: "array", items: { $ref: "#/definitions/Student" } },
@@ -63,9 +61,7 @@ const SWAGGER_2_SPEC = {
         operationId: "getStudent",
         summary: "Get a student by ID",
         tags: ["students"],
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true },
-        ],
+        parameters: [{ name: "id", in: "path", type: "string", required: true }],
         responses: {
           "200": {
             schema: { $ref: "#/definitions/Student" },
@@ -75,9 +71,7 @@ const SWAGGER_2_SPEC = {
       delete: {
         operationId: "deleteStudent",
         tags: ["students"],
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true },
-        ],
+        parameters: [{ name: "id", in: "path", type: "string", required: true }],
         responses: {
           "204": { description: "Deleted" },
         },

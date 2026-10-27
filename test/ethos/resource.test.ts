@@ -115,7 +115,6 @@ describe("EthosResource", () => {
       vi.mocked(client.getAll).mockReturnValue(mockGetAll());
 
       const resource = new EthosResource(client, "persons", 12);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _page of resource.getAll(25, options)) {
         // consume
       }

@@ -117,9 +117,4 @@ export type {
 } from "./finance.js";
 
 // HR — Employees, Positions, Jobs (v12)
-export type {
-  Employee,
-  EmployeeContract,
-  Position,
-  Job,
-} from "./employees.js";
+export type { Employee, EmployeeContract, Position, Job } from "./employees.js";

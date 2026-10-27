@@ -353,9 +353,7 @@ describe("EEDM Type Definitions", () => {
         status: { registrationStatus: "registered" },
         credit: { measure: "credit", minimum: 3, maximum: 3 },
         gradeScheme: { id: "guid-scheme" },
-        grades: [
-          { type: "final", grade: { id: "guid-grade-a" }, submittedOn: "2024-12-15" },
-        ],
+        grades: [{ type: "final", grade: { id: "guid-grade-a" }, submittedOn: "2024-12-15" }],
         involvement: { startOn: "2024-08-19", endOn: "2024-12-13" },
         academicLevel: { id: "guid-undergrad" },
         originallyRegisteredOn: "2024-04-01",

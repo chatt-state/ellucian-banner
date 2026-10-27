@@ -158,9 +158,7 @@ function parseEndpoints(
       if (!op) continue;
 
       const parameters = parseParameters(op, isSwagger2);
-      const requestBody = isSwagger2
-        ? extractSwagger2Body(op)
-        : extractOpenApi3Body(op, schemas);
+      const requestBody = isSwagger2 ? extractSwagger2Body(op) : extractOpenApi3Body(op, schemas);
       const responseSchema = extractResponseSchema(op, isSwagger2, schemas);
 
       endpoints.push({
@@ -193,9 +191,7 @@ function parseParameters(op: SpecJson, isSwagger2: boolean): ParsedParameter[] {
       name: p["name"] as string,
       in: location as "path" | "query" | "header",
       required: (p["required"] as boolean) ?? false,
-      type: mapType(
-        (p["schema"]?.["type"] as string) ?? (p["type"] as string) ?? "string",
-      ),
+      type: mapType((p["schema"]?.["type"] as string) ?? (p["type"] as string) ?? "string"),
     });
   }
 

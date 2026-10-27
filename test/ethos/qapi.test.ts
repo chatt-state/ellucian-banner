@@ -104,9 +104,7 @@ describe("EthosQapi", () => {
         .mockResolvedValueOnce(
           mockResponse([{ id: "1" }, { id: "2" }], 200, { "x-total-count": "3" }),
         )
-        .mockResolvedValueOnce(
-          mockResponse([{ id: "3" }], 200, { "x-total-count": "3" }),
-        );
+        .mockResolvedValueOnce(mockResponse([{ id: "3" }], 200, { "x-total-count": "3" }));
 
       const http = createHttpClient();
       const qapi = new EthosQapi(http);
