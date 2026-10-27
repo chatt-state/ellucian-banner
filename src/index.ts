@@ -1,5 +1,6 @@
 // Auth
-export { EthosAuth } from "./auth/ethos-auth.js";
+export { EthosAuth, decodeJwtTimeClaims } from "./auth/ethos-auth.js";
+export type { JwtTimeClaims } from "./auth/ethos-auth.js";
 export { BannerAuth } from "./auth/banner-auth.js";
 export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 
@@ -7,12 +8,19 @@ export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 export { EthosClient } from "./ethos/client.js";
 export { EthosResource } from "./ethos/resource.js";
 export { EthosNotifications } from "./ethos/notifications.js";
-export type { ChangeNotification, ConsumeOptions } from "./ethos/notifications.js";
+export type {
+  ChangeNotification,
+  ConsumeOptions,
+  ConsumeResult,
+  PollOptions,
+} from "./ethos/notifications.js";
 export { EthosQapi } from "./ethos/qapi.js";
 export { EthosGraphQL } from "./ethos/graphql.js";
 export type { GraphQLRequest, GraphQLResponse, GraphQLError } from "./ethos/graphql.js";
 export { buildCriteriaParam, buildNamedQueryParam } from "./ethos/criteria.js";
-export type { EthosClientConfig } from "./ethos/types.js";
+export type { NamedQueryOptions } from "./ethos/criteria.js";
+export { eedmMediaType, eedmHeaders } from "./ethos/media-type.js";
+export type { EthosClientConfig, EedmVersion } from "./ethos/types.js";
 
 // EEDM Resource Types
 export type {
@@ -86,17 +94,27 @@ export type {
 
 // Banner Client
 export { BannerClient, BannerApiClient } from "./banner/client.js";
-export type { BannerClientConfig } from "./banner/client.js";
+export type {
+  BannerClientConfig,
+  BannerApiClientConstructor,
+  QueryValue,
+} from "./banner/client.js";
 
 // HTTP Client
 export { HttpClient } from "./common/http-client.js";
-export type { AuthProvider, HttpClientConfig } from "./common/http-client.js";
+export type {
+  AuthProvider,
+  HttpClientConfig,
+  RequestBehavior,
+  UnauthorizedHandler,
+} from "./common/http-client.js";
+export { readJson } from "./common/json.js";
 
 // Pagination
 export { parsePaginatedResponse, paginateAll, DEFAULT_PAGE_SIZE } from "./common/pagination.js";
 
 // Retry
-export { withRetry } from "./common/retry.js";
+export { withRetry, parseRetryAfter } from "./common/retry.js";
 export type { RetryOptions } from "./common/retry.js";
 
 // Errors
@@ -107,6 +125,7 @@ export {
   RateLimitError,
   ValidationError,
   ServerError,
+  TimeoutError,
   fromResponse,
 } from "./common/errors.js";
 export type { PaginatedResponse, RequestOptions } from "./common/types.js";

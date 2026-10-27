@@ -6,6 +6,8 @@
  * parses a fetch Response and returns the correct error subclass.
  */
 
+import { parseRetryAfter } from "./retry.js";
+
 /** Base error for all Banner SDK errors. */
 export class BannerError extends Error {
   /** The error class name (e.g., "AuthError", "NotFoundError"). */
@@ -63,6 +65,19 @@ export class ValidationError extends BannerError {
   }
 }
 
+/** The request did not complete within the configured timeout. */
+export class TimeoutError extends BannerError {
+  override readonly name = "TimeoutError";
+
+  constructor(
+    message: string,
+    /** The timeout that elapsed, in milliseconds. */
+    public readonly timeoutMs?: number,
+  ) {
+    super(message);
+  }
+}
+
 /** Server-side error (5xx). */
 export class ServerError extends BannerError {
   override readonly name = "ServerError";
@@ -102,8 +117,10 @@ export async function fromResponse(response: Response): Promise<BannerError> {
     return new NotFoundError(message, body);
   }
   if (status === 429) {
-    const retryAfter = parseInt(response.headers.get("retry-after") ?? "", 10);
-    return new RateLimitError(message, isNaN(retryAfter) ? undefined : retryAfter, body);
+    // Retry-After may be delay-seconds or an HTTP-date; normalize to seconds.
+    const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+    const retryAfter = retryAfterMs === undefined ? undefined : Math.ceil(retryAfterMs / 1000);
+    return new RateLimitError(message, retryAfter, body);
   }
   if (status >= 500) {
     return new ServerError(message, status, body);

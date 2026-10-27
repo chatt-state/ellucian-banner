@@ -46,11 +46,16 @@ export class EthosGraphQL {
     request: GraphQLRequest,
     options?: RequestOptions,
   ): Promise<GraphQLResponse<T>> {
+    if (!request.query || request.query.trim() === "") {
+      throw new TypeError("GraphQL query is required");
+    }
+    // GraphQL is a read here (Ethos GraphQL is query-only), so it is safe to retry.
     const response = await this.http.post(
       "/graphql",
       request,
       { "Content-Type": "application/json", Accept: "application/json" },
       options,
+      { idempotent: true },
     );
     return response.json() as Promise<GraphQLResponse<T>>;
   }

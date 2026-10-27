@@ -1,12 +1,14 @@
 import { EthosAuth } from "../auth/ethos-auth.js";
 import { HttpClient } from "../common/http-client.js";
 import { parsePaginatedResponse, paginateAll, DEFAULT_PAGE_SIZE } from "../common/pagination.js";
+import { readJson } from "../common/json.js";
 import { EthosResource } from "./resource.js";
 import { EthosNotifications } from "./notifications.js";
 import { EthosQapi } from "./qapi.js";
 import { EthosGraphQL } from "./graphql.js";
 import { buildCriteriaParam, buildNamedQueryParam } from "./criteria.js";
-import type { EthosClientConfig } from "./types.js";
+import { eedmHeaders } from "./media-type.js";
+import type { EedmVersion, EthosClientConfig } from "./types.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 import type { Person } from "./types/persons.js";
 import type { Student } from "./types/students.js";
@@ -18,7 +20,11 @@ import type { GradeScheme } from "./types/grades.js";
 import type { SectionRegistration } from "./types/section-registrations.js";
 import type { InstructionalEvent } from "./types/instructional-events.js";
 import type { StudentAcademicCredential } from "./types/student-academic-credentials.js";
-import type { FinancialAidApplication, FinancialAidAward, FinancialAidFund } from "./types/financial-aid.js";
+import type {
+  FinancialAidApplication,
+  FinancialAidAward,
+  FinancialAidFund,
+} from "./types/financial-aid.js";
 import type { AccountingString, LedgerActivity } from "./types/finance.js";
 import type { Employee, Position, Job } from "./types/employees.js";
 
@@ -30,6 +36,7 @@ const DEFAULT_BASE_URL = "https://integrate.elluciancloud.com";
  */
 export class EthosClient {
   private readonly http: HttpClient;
+  private readonly auth: EthosAuth;
 
   /** Pre-bound accessor for persons (EEDM v12). */
   readonly persons: EthosResource<Person>;
@@ -74,15 +81,28 @@ export class EthosClient {
   /** GraphQL query client. */
   readonly graphql: EthosGraphQL;
 
-  constructor(config: EthosClientConfig) {
+  constructor(config: EthosClientConfig = {}) {
     const baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    const auth = new EthosAuth({ apiKey: config.apiKey, baseUrl });
+    const auth = new EthosAuth({
+      apiKey: config.apiKey,
+      baseUrl,
+      refreshBuffer: config.refreshBuffer,
+      expirationMinutes: config.expirationMinutes,
+    });
+    this.auth = auth;
 
     this.http = new HttpClient({
       baseUrl,
       authProvider: () => auth.getToken().then((t) => `Bearer ${t}`),
       timeout: config.timeout,
       debug: config.debug,
+      retry: config.retry ?? true,
+      // A 401 means Ethos rejected the token (expired early, revoked, or
+      // rotated). Drop it and retry once with a fresh one.
+      onUnauthorized: (rejected) => {
+        auth.invalidate(rejected.replace(/^Bearer\s+/i, ""));
+        return true;
+      },
     });
 
     // Pre-bound resource accessors with typed defaults
@@ -93,10 +113,26 @@ export class EthosClient {
     this.academicPeriods = new EthosResource<AcademicPeriod>(this, "academic-periods", 16);
     this.grades = new EthosResource<Grade>(this, "grades", 6);
     this.gradeSchemes = new EthosResource<GradeScheme>(this, "grade-schemes", 6);
-    this.sectionRegistrations = new EthosResource<SectionRegistration>(this, "section-registrations", 16);
-    this.instructionalEvents = new EthosResource<InstructionalEvent>(this, "instructional-events", 11);
-    this.studentAcademicCredentials = new EthosResource<StudentAcademicCredential>(this, "student-academic-credentials", 1);
-    this.financialAidApplications = new EthosResource<FinancialAidApplication>(this, "financial-aid-applications", 9);
+    this.sectionRegistrations = new EthosResource<SectionRegistration>(
+      this,
+      "section-registrations",
+      16,
+    );
+    this.instructionalEvents = new EthosResource<InstructionalEvent>(
+      this,
+      "instructional-events",
+      11,
+    );
+    this.studentAcademicCredentials = new EthosResource<StudentAcademicCredential>(
+      this,
+      "student-academic-credentials",
+      1,
+    );
+    this.financialAidApplications = new EthosResource<FinancialAidApplication>(
+      this,
+      "financial-aid-applications",
+      9,
+    );
     this.financialAidAwards = new EthosResource<FinancialAidAward>(this, "financial-aid-awards");
     this.financialAidFunds = new EthosResource<FinancialAidFund>(this, "financial-aid-funds");
     this.accountingStrings = new EthosResource<AccountingString>(this, "accounting-strings", 12);
@@ -110,7 +146,7 @@ export class EthosClient {
   }
 
   /** Create a custom resource accessor for any EEDM resource. */
-  resource<T = unknown>(name: string, version?: number): EthosResource<T> {
+  resource<T = unknown>(name: string, version?: EedmVersion): EthosResource<T> {
     return new EthosResource<T>(this, name, version);
   }
 
@@ -118,15 +154,11 @@ export class EthosClient {
   async get<T = unknown>(
     resource: string,
     id: string,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<T> {
-    const response = await this.http.get(
-      `/api/${resource}/${id}`,
-      this.eedmHeaders(version),
-      options,
-    );
-    return response.json() as Promise<T>;
+    const response = await this.http.get(itemPath(resource, id), eedmHeaders(version), options);
+    return readJson<T>(response);
   }
 
   /** GET a page of resources. */
@@ -134,22 +166,22 @@ export class EthosClient {
     resource: string,
     offset = 0,
     limit = DEFAULT_PAGE_SIZE,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>> {
     const response = await this.http.get(
-      `/api/${resource}?offset=${offset}&limit=${limit}`,
-      this.eedmHeaders(version),
+      `${collectionPath(resource)}?${pageQuery(offset, limit)}`,
+      eedmHeaders(version),
       options,
     );
-    return parsePaginatedResponse<T>(response, offset);
+    return parsePaginatedResponse<T>(response, offset, limit);
   }
 
   /** Async generator that yields all pages of a resource. */
   async *getAll<T = unknown>(
     resource: string,
     pageSize = DEFAULT_PAGE_SIZE,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): AsyncGenerator<T[], void, unknown> {
     yield* paginateAll<T>(
@@ -162,16 +194,16 @@ export class EthosClient {
   async create<T = unknown>(
     resource: string,
     body: unknown,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<T> {
     const response = await this.http.post(
-      `/api/${resource}`,
+      collectionPath(resource),
       body,
-      this.eedmHeaders(version, true),
+      eedmHeaders(version, true),
       options,
     );
-    return response.json() as Promise<T>;
+    return readJson<T>(response);
   }
 
   /** PUT (update) a resource by ID. */
@@ -179,75 +211,123 @@ export class EthosClient {
     resource: string,
     id: string,
     body: unknown,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<T> {
     const response = await this.http.put(
-      `/api/${resource}/${id}`,
+      itemPath(resource, id),
       body,
-      this.eedmHeaders(version, true),
+      eedmHeaders(version, true),
       options,
     );
-    return response.json() as Promise<T>;
+    return readJson<T>(response);
   }
 
   /** DELETE a resource by ID. */
   async delete(
     resource: string,
     id: string,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<void> {
-    await this.http.delete(`/api/${resource}/${id}`, this.eedmHeaders(version), options);
+    const response = await this.http.delete(itemPath(resource, id), eedmHeaders(version), options);
+    await response.body?.cancel().catch(() => undefined);
   }
 
-  /** GET resources filtered by criteria. */
+  /**
+   * GET resources filtered by criteria (`?criteria=<url-encoded JSON>`).
+   *
+   * @example
+   * await client.filter("persons", { names: [{ firstName: "John" }] });
+   */
   async filter<T = unknown>(
     resource: string,
     criteria: Record<string, unknown>,
     offset = 0,
     limit = DEFAULT_PAGE_SIZE,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>> {
-    const query = `${buildCriteriaParam(criteria)}&offset=${offset}&limit=${limit}`;
+    const query = `${buildCriteriaParam(criteria)}&${pageQuery(offset, limit)}`;
     const response = await this.http.get(
-      `/api/${resource}?${query}`,
-      this.eedmHeaders(version),
+      `${collectionPath(resource)}?${query}`,
+      eedmHeaders(version),
       options,
     );
-    return parsePaginatedResponse<T>(response, offset);
+    return parsePaginatedResponse<T>(response, offset, limit);
   }
 
-  /** GET resources using a named query. */
+  /** Async generator that yields all pages of a criteria-filtered resource. */
+  async *filterAll<T = unknown>(
+    resource: string,
+    criteria: Record<string, unknown>,
+    pageSize = DEFAULT_PAGE_SIZE,
+    version?: EedmVersion,
+    options?: RequestOptions,
+  ): AsyncGenerator<T[], void, unknown> {
+    yield* paginateAll<T>(
+      (off, lim) => this.filter<T>(resource, criteria, off, lim, version, options),
+      pageSize,
+    );
+  }
+
+  /**
+   * GET resources using a named query (`?{queryName}=<url-encoded JSON>`).
+   *
+   * `params` is wrapped as `{ [queryName]: params }` unless it is already in
+   * that shape; see {@link buildNamedQueryParam} to control wrapping.
+   *
+   * @example
+   * await client.namedQuery("sections", "keywordSearch", "math");
+   * await client.namedQuery("persons", "personFilter", { personFilter: { id: guid } });
+   */
   async namedQuery<T = unknown>(
     resource: string,
     queryName: string,
-    params: Record<string, unknown>,
+    params: unknown,
     offset = 0,
     limit = DEFAULT_PAGE_SIZE,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>> {
-    const query = `${buildNamedQueryParam(queryName, params)}&offset=${offset}&limit=${limit}`;
+    const query = `${buildNamedQueryParam(queryName, params)}&${pageQuery(offset, limit)}`;
     const response = await this.http.get(
-      `/api/${resource}?${query}`,
-      this.eedmHeaders(version),
+      `${collectionPath(resource)}?${query}`,
+      eedmHeaders(version),
       options,
     );
-    return parsePaginatedResponse<T>(response, offset);
+    return parsePaginatedResponse<T>(response, offset, limit);
   }
 
-  /** Build EEDM versioned Accept/Content-Type headers. */
-  private eedmHeaders(version?: number, includeContentType = false): Record<string, string> {
-    if (!version) {
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (includeContentType) headers["Content-Type"] = "application/json";
-      return headers;
-    }
-    const mediaType = `application/vnd.hedtech.integration.v${version}+json`;
-    const headers: Record<string, string> = { Accept: mediaType };
-    if (includeContentType) headers["Content-Type"] = mediaType;
-    return headers;
+  /** Discard the cached access token; the next request fetches a fresh one. */
+  invalidateToken(): void {
+    this.auth.invalidate();
   }
+}
+
+/** `/api/{resource}` with the resource name validated and encoded. */
+function collectionPath(resource: string): string {
+  if (!resource || resource.trim() === "") {
+    throw new TypeError("Ethos resource name is required");
+  }
+  return `/api/${encodeURIComponent(resource.trim())}`;
+}
+
+/** `/api/{resource}/{id}` with both segments encoded. */
+function itemPath(resource: string, id: string): string {
+  if (!id || String(id).trim() === "") {
+    throw new TypeError("Ethos resource id is required");
+  }
+  return `${collectionPath(resource)}/${encodeURIComponent(id)}`;
+}
+
+/** `offset=..&limit=..` with basic validation. */
+function pageQuery(offset: number, limit: number): string {
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new TypeError(`offset must be a non-negative integer, got ${offset}`);
+  }
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new TypeError(`limit must be a positive integer, got ${limit}`);
+  }
+  return `offset=${offset}&limit=${limit}`;
 }

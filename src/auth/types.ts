@@ -5,6 +5,11 @@ export interface EthosAuthConfig {
   baseUrl?: string;
   /** Buffer in seconds before token expiry to trigger refresh (default: 30) */
   refreshBuffer?: number;
+  /**
+   * Requested token lifetime in minutes (1-120), sent as `?expirationMinutes=`
+   * to the Ethos /auth endpoint. Omit to use the Ethos default (5 minutes).
+   */
+  expirationMinutes?: number;
 }
 
 export interface BannerAuthConfig {

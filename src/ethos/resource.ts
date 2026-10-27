@@ -6,32 +6,43 @@
  */
 
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
+import type { EedmVersion } from "./types.js";
 
 /** Interface for the underlying client methods that EthosResource delegates to. */
 export interface EthosResourceClient {
-  get<T>(resource: string, id: string, version?: number, options?: RequestOptions): Promise<T>;
+  get<T>(resource: string, id: string, version?: EedmVersion, options?: RequestOptions): Promise<T>;
   getPage<T>(
     resource: string,
     offset?: number,
     limit?: number,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>>;
   getAll<T>(
     resource: string,
     pageSize?: number,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): AsyncGenerator<T[], void, unknown>;
-  create<T>(resource: string, body: unknown, version?: number, options?: RequestOptions): Promise<T>;
+  create<T>(
+    resource: string,
+    body: unknown,
+    version?: EedmVersion,
+    options?: RequestOptions,
+  ): Promise<T>;
   update<T>(
     resource: string,
     id: string,
     body: unknown,
-    version?: number,
+    version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<T>;
-  delete(resource: string, id: string, version?: number, options?: RequestOptions): Promise<void>;
+  delete(
+    resource: string,
+    id: string,
+    version?: EedmVersion,
+    options?: RequestOptions,
+  ): Promise<void>;
 }
 
 /**
@@ -48,7 +59,7 @@ export class EthosResource<TDefault = unknown> {
   constructor(
     private readonly client: EthosResourceClient,
     private readonly resourceName: string,
-    private readonly version?: number,
+    private readonly version?: EedmVersion,
   ) {}
 
   /** GET a single resource by ID. */
