@@ -373,6 +373,44 @@ describe("EEDM Type Definitions", () => {
 
       expect(reg.section.id).toBeDefined();
     });
+
+    it("models dropped/withdrawn as notRegistered with a reason", () => {
+      const dropped: SectionRegistration = {
+        id: "00000000-0000-0000-0000-000000000001",
+        registrant: { id: "guid-person" },
+        section: { id: "guid-section" },
+        status: {
+          registrationStatus: "notRegistered",
+          sectionRegistrationStatusReason: "dropped",
+          detail: { id: "guid-stvrsts-dd" },
+        },
+        statusDate: "2026-09-01",
+      };
+      const isRegistered = (r: SectionRegistration) =>
+        r.status?.registrationStatus === "registered";
+      expect(isRegistered(dropped)).toBe(false);
+    });
+
+    it("rejects registration-reason values in registrationStatus (checked by tsc)", () => {
+      // These assertions only hold because `npm run typecheck` now type-checks
+      // test/** (tsconfig.test.json): an unused @ts-expect-error fails it.
+      const bad: SectionRegistration = {
+        id: "x",
+        registrant: { id: "p" },
+        section: { id: "s" },
+        // @ts-expect-error "dropped" is a sectionRegistrationStatusReason, not a registrationStatus
+        status: { registrationStatus: "dropped" },
+      };
+      const extra: SectionRegistration = {
+        id: "x",
+        registrant: { id: "p" },
+        section: { id: "s" },
+        // @ts-expect-error unknown properties are rejected on EEDM fixtures
+        bogusField: true,
+      };
+      expect(bad.id).toBe("x");
+      expect(extra.id).toBe("x");
+    });
   });
 
   describe("InstructionalEvent (v11)", () => {
@@ -475,17 +513,28 @@ describe("EEDM Type Definitions", () => {
 
   describe("FinancialAidAward", () => {
     it("should accept a valid financial aid award object", () => {
+      // student-financial-aid-awards v11 shape
       const award: FinancialAidAward = {
         id: "f1a2b3c4-0000-0000-0000-000000000001",
         student: { id: "guid-student" },
+        awardFund: { id: "guid-pell-grant" },
         aidYear: { id: "guid-2024-2025" },
-        fund: { id: "guid-pell-grant" },
-        amount: 6895,
-        status: "accepted",
+        originallyOfferedOn: "2024-06-01",
+        awardsByPeriod: [
+          {
+            awardPeriod: { id: "guid-fall-2024" },
+            academicPeriods: [{ id: "guid-202480" }],
+            status: { state: "accepted", stateOn: "2024-07-01" },
+            amounts: {
+              offered: { value: 3447.5, currency: "USD" },
+              accepted: { value: 3447.5, currency: "USD" },
+            },
+          },
+        ],
       };
 
-      expect(award.amount).toBe(6895);
-      expect(award.status).toBe("accepted");
+      expect(award.awardFund.id).toBe("guid-pell-grant");
+      expect(award.awardsByPeriod?.[0]?.status?.state).toBe("accepted");
     });
   });
 

@@ -21,12 +21,24 @@ export interface RegistrationApproval {
   approvedBy?: GuidRef;
 }
 
-/** Status information for a section registration. */
+/**
+ * Status information for a section registration.
+ *
+ * To answer "is this student registered for this section?", test
+ * `registrationStatus === "registered"`. Dropped and withdrawn registrations
+ * have `registrationStatus: "notRegistered"`; the reason (dropped, withdrawn,
+ * ...) is in `sectionRegistrationStatusReason`.
+ */
 export interface RegistrationStatus {
-  /** The registration status category (e.g., "registered", "dropped", "withdrawn"). */
-  registrationStatus: string;
-  /** The section-level registration status category. */
+  /** Whether the student is registered: `"registered"` or `"notRegistered"`. */
+  registrationStatus: "registered" | "notRegistered";
+  /**
+   * Why the registration has this status, e.g. "registered", "dropped",
+   * "withdrawn", "auditing", "pass", "incomplete" (EEDM enumeration).
+   */
   sectionRegistrationStatusReason?: string;
+  /** The institution's own registration status code (Banner STVRSTS), as a GUID reference. */
+  detail?: GuidRef;
 }
 
 /** A grade outcome for a section registration. */
@@ -69,6 +81,8 @@ export interface SectionRegistration {
   section: GuidRef;
   /** The current status of the registration. */
   status?: RegistrationStatus;
+  /** The date the current status took effect (YYYY-MM-DD). */
+  statusDate?: string;
   /** Approval information for the registration. */
   approvals?: RegistrationApproval[];
   /** Credit information for the registration. */

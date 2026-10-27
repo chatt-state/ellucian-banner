@@ -200,7 +200,7 @@ describe("HttpClient retry safety", () => {
       new Response("", { status: 429, headers: { "Retry-After": "3600" } }),
     );
     const client = new HttpClient({ ...baseConfig, retry: { maxRetries: 3, maxDelay: 30_000 } });
-    const err = await client.get("/x").catch((e: unknown) => e as RateLimitError);
+    const err = (await client.get("/x").catch((e: unknown) => e)) as RateLimitError;
     expect(err).toBeInstanceOf(RateLimitError);
     expect(err.retryAfter).toBe(3600);
     expect(fetch).toHaveBeenCalledTimes(1);

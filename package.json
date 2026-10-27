@@ -38,7 +38,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/ test/ && prettier --check src/ test/",
     "lint:fix": "eslint --fix src/ test/ && prettier --write src/ test/",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "pack:check": "npm pack --dry-run"
   },
   "keywords": [

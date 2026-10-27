@@ -85,6 +85,9 @@ async function main(): Promise<void> {
 
   const inferredName = apiName ?? inferApiName(specJson, specPath);
   const parsed = parseSpec(specJson);
+  for (const warning of parsed.warnings ?? []) {
+    console.error(`Warning: ${warning}`);
+  }
   const files = generateClient(parsed, inferredName);
 
   // Write output

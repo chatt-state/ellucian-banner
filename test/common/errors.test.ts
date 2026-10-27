@@ -98,7 +98,9 @@ describe("fromResponse", () => {
     expect(err).toBeInstanceOf(ValidationError);
     expect(err.statusCode).toBe(400);
     expect(err.responseBody).toBe("invalid field");
-    expect(err.message).toContain("invalid field");
+    // The body can echo student data; it must never reach the message.
+    expect(err.message).toBe("400 Bad Request");
+    expect(err.message).not.toContain("invalid field");
   });
 
   it("returns AuthError for 401", async () => {
@@ -151,12 +153,34 @@ describe("fromResponse", () => {
     expect(err.statusCode).toBe(418);
   });
 
-  it("truncates long response bodies in message", async () => {
+  it("keeps the body out of the message but preserves it in responseBody", async () => {
     const longBody = "x".repeat(500);
     const err = await fromResponse(mockResponse(500, longBody));
-    expect(err.message.length).toBeLessThan(300);
-    expect(err.message).toContain("...");
-    // Full body is preserved in responseBody
+    expect(err.message).toBe("500 Internal Server Error");
     expect(err.responseBody).toBe(longBody);
+  });
+
+  it("never puts PII from an Ethos error body into the message", async () => {
+    const body = JSON.stringify({
+      errors: [
+        {
+          code: "Validation.Exception",
+          message: "Person Jane Doe (DOB 2001-04-05, A00123456) already exists",
+          description: "Duplicate person jdoe@example.edu",
+        },
+      ],
+    });
+    const err = await fromResponse(mockResponse(409, body));
+    expect(err.message).toBe("409 Unknown (Validation.Exception)");
+    for (const secret of ["Jane", "2001-04-05", "A00123456", "jdoe@example.edu"]) {
+      expect(err.message).not.toContain(secret);
+    }
+    expect(err.responseBody).toBe(body);
+  });
+
+  it("ignores error codes that look like free text", async () => {
+    const body = JSON.stringify({ errors: [{ code: "Jane Doe is a duplicate" }] });
+    const err = await fromResponse(mockResponse(400, body));
+    expect(err.message).toBe("400 Bad Request");
   });
 });

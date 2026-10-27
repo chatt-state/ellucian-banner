@@ -134,8 +134,12 @@ function generateClientClass(spec: ParsedSpec, className: string): string {
     `  static readonly basePath = ${JSON.stringify(spec.basePath === "/" ? "" : spec.basePath)};`,
   );
 
+  // Names a generated method must never take: BannerApiClient members (an
+  // override such as `get()` would have an incompatible signature and call
+  // itself) plus Object/class built-ins.
+  const usedNames = new Set<string>(RESERVED_MEMBER_NAMES);
   for (const endpoint of spec.endpoints) {
-    lines.push(...generateMethod(endpoint));
+    lines.push(...generateMethod(endpoint, usedNames));
   }
 
   lines.push("}");
@@ -144,8 +148,39 @@ function generateClientClass(spec: ParsedSpec, className: string): string {
   return lines.join("\n");
 }
 
-function generateMethod(endpoint: ParsedEndpoint): string[] {
-  const methodName = deriveMethodName(endpoint);
+/** BannerApiClient members and other names generated methods must avoid. */
+const RESERVED_MEMBER_NAMES = [
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "getRaw",
+  "withQuery",
+  "url",
+  "http",
+  "basePath",
+  "constructor",
+  "prototype",
+  "toString",
+  "valueOf",
+  "hasOwnProperty",
+  "isPrototypeOf",
+  "propertyIsEnumerable",
+  "toLocaleString",
+  "__proto__",
+];
+
+/** A method name not in `used`: suffix "Op", then a counter, on conflict. */
+function uniqueMethodName(base: string, used: Set<string>): string {
+  let name = used.has(base) ? `${base}Op` : base;
+  for (let n = 2; used.has(name); n++) name = `${base}Op${n}`;
+  used.add(name);
+  return name;
+}
+
+function generateMethod(endpoint: ParsedEndpoint, usedNames: Set<string>): string[] {
+  const methodName = uniqueMethodName(deriveMethodName(endpoint), usedNames);
   const pathParams = endpoint.parameters.filter((p) => p.in === "path");
   const queryParams = endpoint.parameters.filter((p) => p.in === "query");
   const httpMethod = endpoint.method;
@@ -208,7 +243,9 @@ function generateMethod(endpoint: ParsedEndpoint): string[] {
 
 function deriveMethodName(endpoint: ParsedEndpoint): string {
   if (endpoint.operationId) {
-    return toCamelCase(endpoint.operationId);
+    const fromId = toCamelCase(endpoint.operationId);
+    if (/^[A-Za-z_$]/.test(fromId)) return fromId;
+    if (fromId !== "") return `op${toPascalCase(fromId)}`;
   }
   // Generate from method + path: GET /students/{id} → getStudentsById
   const segments = endpoint.path
@@ -240,19 +277,38 @@ function deriveReturnType(endpoint: ParsedEndpoint): string {
   return schemaToTsType(schema);
 }
 
+/**
+ * Characters allowed in a spec path: RFC 3986 path characters plus "{" "}"
+ * for placeholders. Anything else (quotes, backticks, whitespace, "\\", ...)
+ * is rejected rather than emitted into generated code.
+ */
+const SAFE_SPEC_PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%{}/-]*$/;
+
+/**
+ * Build the TypeScript expression for an endpoint URL path.
+ *
+ * Static parts are emitted as JSON string literals and path parameters as
+ * `encodeURIComponent(String(param))`, joined with "+". Spec text is never
+ * spliced into a template literal, so a malicious path such as
+ * `/x"+require("child_process")...` or `/\${evil}` cannot become code.
+ */
 function buildPathExpression(path: string, pathParams: { name: string }[]): string {
-  if (pathParams.length === 0) {
-    return `"${path}"`;
+  if (!SAFE_SPEC_PATH.test(path)) {
+    throw new Error(`Unsafe characters in spec path ${JSON.stringify(path)}`);
   }
-  // Convert /students/{id} to `/students/${encodeURIComponent(String(id))}`
-  let template = path;
-  for (const p of pathParams) {
-    template = template.replace(
-      `{${p.name}}`,
-      `\${encodeURIComponent(String(${toIdentifier(p.name)}))}`,
-    );
+  const parts: string[] = [];
+  let last = 0;
+  for (const match of path.matchAll(/\{([^{}]+)\}/g)) {
+    const name = match[1] as string;
+    const param = pathParams.find((p) => p.name === name);
+    if (!param) continue; // parser synthesizes missing params; leave literal otherwise
+    const index = match.index ?? 0;
+    if (index > last) parts.push(JSON.stringify(path.slice(last, index)));
+    parts.push(`encodeURIComponent(String(${toIdentifier(param.name)}))`);
+    last = index + match[0].length;
   }
-  return `\`${template}\``;
+  if (last < path.length || parts.length === 0) parts.push(JSON.stringify(path.slice(last)));
+  return parts.join(" + ");
 }
 
 function buildQueryParamsType(params: { name: string; type: string; required: boolean }[]): string {
@@ -263,11 +319,16 @@ function buildQueryParamsType(params: { name: string; type: string; required: bo
   return `{ ${props.join("; ")} }`;
 }
 
+/** Every named schema a method signature can mention (refs at any array depth). */
 function collectUsedSchemaNames(spec: ParsedSpec, names: Set<string>): void {
+  const visit = (schema: ParsedSchema | undefined) => {
+    for (let s = schema; s; s = s.items) {
+      if (s.ref) names.add(s.ref);
+    }
+  };
   for (const ep of spec.endpoints) {
-    if (ep.requestBody?.ref) names.add(ep.requestBody.ref);
-    if (ep.responseSchema?.ref) names.add(ep.responseSchema.ref);
-    if (ep.responseSchema?.items?.ref) names.add(ep.responseSchema.items.ref);
+    visit(ep.requestBody);
+    visit(ep.responseSchema);
   }
 }
 

@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking
+
+- **Pre-bound accessors now call the real EEDM resources.** `positions` and `jobs` call
+  `institution-positions` and `institution-jobs` (v12). `financialAidAwards` calls
+  `student-financial-aid-awards` v11 (the old `financial-aid-awards` does not exist), and its
+  `FinancialAidAward` type now follows the v11 schema (`awardFund`, `awardsByPeriod`, ...).
+  `grades` calls `grade-definitions` v6. All of these previously returned 404.
+- **`courses` is pinned to v6** (Ethos never published v4) and **`accountingStrings` to v7**
+  (the only published version, not v12).
+- **Base URLs must be `https://`** and must not contain credentials, a query or a fragment, in
+  `BannerAuth`/`BannerClient` and `EthosAuth`/`EthosClient`. `allowInsecureHttp: true` exists for
+  loopback tests only.
+- **Error messages no longer include response body text.** `BannerError.message` is the status
+  line plus any Ethos error codes; the raw body is still in `responseBody`.
+- **`DEBUG=1`, `DEBUG=true` and `DEBUG=*` no longer enable debug logging**; only a `DEBUG` value
+  naming `ellucian-banner` does.
+- **Resource names and IDs are validated.** Ethos resource names must match
+  `[A-Za-z0-9][A-Za-z0-9_-]*`; IDs must not be `.`, `..` (also percent-encoded) or contain `/` or
+  `\`. Request paths must start with a single `/` and contain no dot segments.
+- `RegistrationStatus.registrationStatus` is typed as `"registered" | "notRegistered"`.
+- `AuthProvider` now receives the caller's `AbortSignal`.
+
+### Added
+
+- `EthosResource.filter`, `filterAll`, `namedQuery`, `namedQueryAll`, `qapiSearch` and
+  `qapiSearchAll`, which send the accessor's pinned version.
+- `EthosClient.namedQueryAll`, and a `{ wrap }` option on `namedQuery` for named queries whose
+  JSON keys differ from the query name.
+- `gradeDefinitions`, `studentFinancialAidAwards` and `restrictedStudentFinancialAidAwards`
+  accessors (`grades` and `financialAidAwards` remain as deprecated aliases).
+- `PollOptions.onProcessed(lastProcessedID)` checkpoint hook for change notifications.
+- `EthosAuth` options `timeout` and `retry`; `getToken(signal)` / `refresh(signal)`.
+- `SectionRegistration.statusDate` and `RegistrationStatus.detail`.
+- `ParsedSpec.warnings` (printed by the codegen CLI) and `pickJsonMediaType()`.
+- `npm run typecheck` also type-checks `test/` through `tsconfig.test.json`.
+
+### Fixed
+
+- **A restarted notification consumer could lose a batch.** The README promised re-delivery,
+  but a first `/consume` without `lastProcessedID` makes Ethos treat the previous batch as
+  processed. The docs now say so, and `onProcessed` lets callers persist the position to resume
+  from.
+- **Aborting `poll()` during an in-flight `/consume` threw `AbortError`.** It now ends the loop.
+- **Timeouts and AbortSignals did not cover the response body.** A server that sent headers and
+  then stalled the body hung forever. The body is now read inside the timed, abortable section.
+- **`POST /auth` had no timeout, abort or retry**, so a hung `/auth` blocked every request. Each
+  attempt now has the client `timeout`, 429/5xx/network errors are retried, a caller's signal
+  stops that caller waiting, and failures reject with `TimeoutError` or `AuthError`.
+- **Path traversal.** `ethos.get("..", "consume")` reached `/consume` (draining the notification
+  queue), and a Banner path such as `.evil.example/x` with an empty base path sent Basic
+  credentials to another host. Both are now rejected before a request is built.
+- **Non-JSON list, GraphQL and notification bodies threw a raw `SyntaxError`** whose message
+  quoted the body. They now throw `BannerError` with a generic message.
+- **Debug logs wrote identifiers embedded in paths** (Banner IDs, GUIDs) to stderr. Path segments
+  that look like identifiers are now masked as `[id]`.
+- **Codegen:**
+  - Path-item-level and `$ref` parameters were ignored, so generated methods requested literal
+    `{id}` URLs. They are now merged and resolved, and an unmatched placeholder produces a
+    required string parameter plus a warning.
+  - Bodies with vendor media types (`application/vnd.hedtech.integration.v1+json`, `*/*`) were
+    dropped. The first JSON-like media type is now used, and a body without a usable schema
+    becomes `body: unknown`.
+  - Item types of array request bodies were not imported, so the output did not compile.
+  - Method names could collide with `BannerApiClient` members (`get`, `delete`, `getRaw`, ...)
+    or with each other. They now get an `Op` suffix.
+  - Spec paths were spliced into generated code unescaped (code injection). Paths are now emitted
+    as JSON string literals, and paths with characters outside RFC 3986 are rejected.
+- Docs: GraphQL example uses `persons12`; `RegistrationStatus` documents
+  registered/notRegistered and where dropped/withdrawn live; the academic-period `code` example
+  is a Banner STVTERM code; README adds a "registered for a term" recipe.
+
 ## [0.2.0] - 2026-10-27
 
 ### Fixed

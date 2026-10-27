@@ -1,5 +1,5 @@
 /**
- * EEDM Grades resource types (v6).
+ * EEDM grade resource types: grade-definitions (v6) and grade-schemes (v6).
  *
  * Represents grade definitions and grade schemes used by an institution
  * to evaluate student performance.
@@ -14,7 +14,7 @@ import type { EedmMetadata, GuidRef } from "./common.js";
 // ---------------------------------------------------------------------------
 
 /**
- * A grade definition (EEDM grades v6).
+ * A grade definition (EEDM `grade-definitions` v6; there is no `grades` resource).
  *
  * Represents a single grade value within a grade scheme (e.g., "A", "B+", "P").
  */

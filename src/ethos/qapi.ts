@@ -10,6 +10,7 @@
 
 import { parsePaginatedResponse, paginateAll, DEFAULT_PAGE_SIZE } from "../common/pagination.js";
 import { eedmHeaders } from "./media-type.js";
+import { pageQuery, qapiPath } from "./path.js";
 import type { HttpClient } from "../common/http-client.js";
 import type { PaginatedResponse, RequestOptions } from "../common/types.js";
 import type { EedmVersion } from "./types.js";
@@ -32,10 +33,8 @@ export class EthosQapi {
     version?: EedmVersion,
     options?: RequestOptions,
   ): Promise<PaginatedResponse<T>> {
-    if (!resource || resource.trim() === "") {
-      throw new TypeError("QAPI resource name is required");
-    }
-    const path = `/qapi/${encodeURIComponent(resource.trim())}?offset=${offset}&limit=${limit}`;
+    // Validated: a resource of ".." would otherwise escape /qapi/.
+    const path = `${qapiPath(resource)}?${pageQuery(offset, limit)}`;
     const response = await this.http.post(
       path,
       criteria ?? {},

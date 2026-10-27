@@ -87,8 +87,8 @@ describe("EthosClient request building", () => {
       .mockResolvedValueOnce(new Response("t"))
       .mockResolvedValueOnce(json({}));
     const client = new EthosClient({ apiKey: "k" });
-    await client.get("persons", "a/b?c#d");
-    expect(urlOf(1)).toBe("https://integrate.elluciancloud.com/api/persons/a%2Fb%3Fc%23d");
+    await client.get("persons", "a b?c#d&e");
+    expect(urlOf(1)).toBe("https://integrate.elluciancloud.com/api/persons/a%20b%3Fc%23d%26e");
   });
 
   it("rejects empty ids and resource names", async () => {

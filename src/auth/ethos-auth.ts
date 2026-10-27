@@ -1,7 +1,12 @@
 import type { EthosAuthConfig } from "./types.js";
-import { AuthError } from "../common/errors.js";
+import { raceAbort } from "../common/abort.js";
+import { AuthError, BannerError, TimeoutError } from "../common/errors.js";
+import { withRetry } from "../common/retry.js";
+import type { RetryOptions } from "../common/retry.js";
+import { checkBaseUrl } from "../common/url.js";
 
 const DEFAULT_BASE_URL = "https://integrate.elluciancloud.com";
+const DEFAULT_TIMEOUT = 30_000; // ms
 const DEFAULT_REFRESH_BUFFER = 30; // seconds
 /** Ethos's default token lifetime, used when the JWT carries no usable `exp`. */
 const FALLBACK_TOKEN_LIFETIME = 300; // seconds
@@ -51,12 +56,18 @@ export function decodeJwtTimeClaims(token: string): JwtTimeClaims | undefined {
  * - Concurrent callers share a single in-flight refresh request.
  * - `invalidate(token)` lets the HTTP layer discard a token Ethos rejected
  *   with 401 without stampeding the /auth endpoint.
+ * - Each /auth attempt has its own timeout (TimeoutError), and 429, 5xx,
+ *   network errors and timeouts are retried with backoff. A caller's
+ *   AbortSignal stops that caller waiting without cancelling the refresh that
+ *   other callers share.
  */
 export class EthosAuth {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly refreshBuffer: number;
   private readonly expirationMinutes: number | undefined;
+  private readonly timeout: number;
+  private readonly retryOptions: RetryOptions | undefined;
   private token: string | null = null;
   /** Epoch ms after which the cached token should no longer be handed out. */
   private refreshAt = 0;
@@ -72,12 +83,16 @@ export class EthosAuth {
       );
     }
 
-    if (config.baseUrl !== undefined) {
-      try {
-        new URL(config.baseUrl);
-      } catch {
-        throw new AuthError(`Invalid baseUrl: ${config.baseUrl}`);
-      }
+    // The API key and every token cross this connection: require HTTPS.
+    const urlProblem = checkBaseUrl(config.baseUrl ?? DEFAULT_BASE_URL, {
+      allowInsecureHttp: config.allowInsecureHttp,
+    });
+    if (urlProblem) {
+      throw new AuthError(`Invalid baseUrl: ${urlProblem}`);
+    }
+
+    if (config.timeout !== undefined && !(config.timeout > 0)) {
+      throw new AuthError("timeout must be a positive number of milliseconds");
     }
 
     if (config.expirationMinutes !== undefined) {
@@ -95,6 +110,9 @@ export class EthosAuth {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.refreshBuffer = config.refreshBuffer ?? DEFAULT_REFRESH_BUFFER;
     this.expirationMinutes = config.expirationMinutes;
+    this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
+    const retry = config.retry ?? true;
+    this.retryOptions = retry === true ? {} : retry || undefined;
   }
 
   /** Epoch ms when the current token expires, or 0 if no token is cached. */
@@ -102,25 +120,32 @@ export class EthosAuth {
     return this.token ? this.expiresAt : 0;
   }
 
-  /** Get a valid JWT token, refreshing if necessary. */
-  async getToken(): Promise<string> {
+  /**
+   * Get a valid JWT token, refreshing if necessary.
+   *
+   * @param signal - Stop waiting (rejecting with the abort reason) when this
+   *   aborts. A refresh shared with other callers keeps running.
+   */
+  async getToken(signal?: AbortSignal): Promise<string> {
     if (this.token && Date.now() < this.refreshAt) {
       return this.token;
     }
-    return this.refresh();
+    return this.refresh(signal);
   }
 
   /**
    * Force a token refresh. If a refresh is already in flight, its result is
    * shared rather than issuing a second /auth request.
+   *
+   * @param signal - Stop waiting when this aborts (see {@link getToken}).
    */
-  refresh(): Promise<string> {
+  refresh(signal?: AbortSignal): Promise<string> {
     if (!this.inflight) {
       this.inflight = this.fetchToken().finally(() => {
         this.inflight = null;
       });
     }
-    return this.inflight;
+    return raceAbort(this.inflight, signal);
   }
 
   /**
@@ -142,12 +167,22 @@ export class EthosAuth {
         ? `${this.baseUrl}/auth?expirationMinutes=${this.expirationMinutes}`
         : `${this.baseUrl}/auth`;
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-    });
+    let response: Response;
+    try {
+      const attempt = () => this.authAttempt(url);
+      response = this.retryOptions
+        ? await withRetry(attempt, this.retryOptions, undefined, {
+            // Issuing a token has no side effects, so it is safe to repeat.
+            retryServerErrors: true,
+            shouldRetryError: (error) =>
+              error instanceof TimeoutError || error instanceof TypeError,
+          })
+        : await attempt();
+    } catch (error) {
+      if (error instanceof BannerError) throw error;
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new AuthError(`Ethos auth request failed: ${reason}`);
+    }
 
     if (!response.ok) {
       // Do not include the response body: it is not useful and never echo the key.
@@ -171,6 +206,43 @@ export class EthosAuth {
     this.expiresAt = now + lifetimeMs;
     this.refreshAt = this.expiresAt - bufferMs;
     return token;
+  }
+
+  /**
+   * One `POST /auth` attempt. The timeout covers the headers and the token
+   * body; the body is buffered so a stalled stream cannot hang the refresh.
+   */
+  private async authAttempt(url: string): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () =>
+        controller.abort(
+          new TimeoutError(`Ethos auth request timed out after ${this.timeout}ms`, this.timeout),
+        ),
+      this.timeout,
+    );
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      return new Response(text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    } catch (error) {
+      if (controller.signal.aborted && controller.signal.reason !== undefined) {
+        throw controller.signal.reason;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** Remaining token lifetime in ms, from JWT claims or the fallback. */

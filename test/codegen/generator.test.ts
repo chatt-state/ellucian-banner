@@ -128,7 +128,7 @@ describe("generateClient", () => {
     it("generates getStudent method with path param", () => {
       expect(result.client).toContain("async getStudent(id: string");
       expect(result.client).toContain(
-        "this.get<Student>(`/students/${encodeURIComponent(String(id))}`, options)",
+        'this.get<Student>("/students/" + encodeURIComponent(String(id)), options)',
       );
     });
 
@@ -211,7 +211,7 @@ describe("generateClient edge cases", () => {
 
   it("turns hyphenated path params into identifiers and encodes them", () => {
     expect(out).toContain("async closeTerm(termCode: string");
-    expect(out).toContain("${encodeURIComponent(String(termCode))}");
+    expect(out).toContain("encodeURIComponent(String(termCode))");
   });
 
   it("quotes non-identifier query keys and keeps required query params required", () => {

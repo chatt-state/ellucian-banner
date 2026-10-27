@@ -45,9 +45,15 @@ export interface AcademicPeriod {
   metadata?: EedmMetadata;
   /** A globally unique identifier (GUID) for the academic period. */
   id: string;
-  /** A short code identifying the period (e.g., "2024FA"). */
+  /**
+   * The institution's code for the period. In a Banner-backed tenant this is
+   * the STVTERM term code, usually six digits such as "202680" (year plus an
+   * institution-specific suffix); the format is institution-defined. Filter on
+   * this code, not on a guessed label: `title` holds the human label
+   * (e.g. "Fall 2026"). A wrong code returns an empty page, not an error.
+   */
   code?: string;
-  /** The full name of the academic period (e.g., "Fall 2024"). */
+  /** The full name of the academic period (e.g., "Fall 2026"). */
   title: string;
   /** A description of the academic period. */
   description?: string;

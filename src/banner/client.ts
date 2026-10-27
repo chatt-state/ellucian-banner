@@ -176,7 +176,23 @@ export class BannerApiClient {
     return `${path}${path.includes("?") ? "&" : "?"}${qs}`;
   }
 
+  /**
+   * Join basePath and path. The path must start with "/" (or "?" / be empty),
+   * so a caller-supplied value cannot change the host when basePath is "".
+   * HttpClient additionally rejects dot segments, so a path cannot climb out
+   * of this sub-client's basePath either.
+   */
   private url(path: string): string {
-    return `${this.basePath}${path}`;
+    if (
+      typeof path !== "string" ||
+      (path !== "" && !path.startsWith("/") && !path.startsWith("?"))
+    ) {
+      throw new TypeError('BannerApiClient: path must start with "/"');
+    }
+    if (path.startsWith("//")) {
+      throw new TypeError('BannerApiClient: path must not start with "//"');
+    }
+    const url = `${this.basePath}${path}`;
+    return url === "" || url.startsWith("?") ? `/${url}` : url;
   }
 }

@@ -155,7 +155,7 @@ describe("EthosAuth token lifetime", () => {
       new Response("bad key secret-key-123", { status: 401, statusText: "Unauthorized" }),
     );
     const auth = new EthosAuth({ apiKey: "secret-key-123" });
-    const err = await auth.getToken().catch((e: unknown) => e as AuthError);
+    const err = (await auth.getToken().catch((e: unknown) => e)) as AuthError;
     expect(err).toBeInstanceOf(AuthError);
     expect(err.message).not.toContain("secret-key-123");
     expect(err.responseBody).toBeUndefined();
@@ -202,7 +202,7 @@ describe("EthosAuth concurrency", () => {
       .mockResolvedValueOnce(new Response("no", { status: 500, statusText: "Server Error" }))
       .mockResolvedValueOnce(new Response("recovered"));
 
-    const auth = new EthosAuth({ apiKey: "k" });
+    const auth = new EthosAuth({ apiKey: "k", retry: false });
     const results = await Promise.allSettled([auth.getToken(), auth.getToken()]);
     expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -215,7 +215,7 @@ describe("EthosAuth concurrency", () => {
     vi.spyOn(globalThis, "fetch")
       .mockRejectedValueOnce(new TypeError("fetch failed"))
       .mockResolvedValueOnce(new Response("ok"));
-    const auth = new EthosAuth({ apiKey: "k" });
+    const auth = new EthosAuth({ apiKey: "k", retry: false });
     await expect(auth.getToken()).rejects.toThrow("fetch failed");
     expect(await auth.getToken()).toBe("ok");
   });

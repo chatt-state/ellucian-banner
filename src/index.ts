@@ -6,7 +6,13 @@ export type { EthosAuthConfig, BannerAuthConfig } from "./auth/types.js";
 
 // Ethos Client
 export { EthosClient } from "./ethos/client.js";
+export type { NamedQueryRequestOptions } from "./ethos/client.js";
 export { EthosResource } from "./ethos/resource.js";
+export type {
+  EthosNamedQueryOptions,
+  EthosQapiClient,
+  EthosResourceClient,
+} from "./ethos/resource.js";
 export { EthosNotifications } from "./ethos/notifications.js";
 export type {
   ChangeNotification,
@@ -49,7 +55,7 @@ export type {
   StudentLevelClassification,
   StudentResidency,
   StudentType,
-  // Courses (v4)
+  // Courses (v6)
   Course,
   CourseSubject,
   // Sections (v16)
@@ -79,6 +85,9 @@ export type {
   // Financial Aid
   FinancialAidApplication,
   FinancialAidAward,
+  FinancialAidAwardAmount,
+  FinancialAidAwardPeriodStatus,
+  FinancialAidAwardsByPeriod,
   FinancialAidFund,
   // Finance
   AccountingString,
@@ -101,7 +110,7 @@ export type {
 } from "./banner/client.js";
 
 // HTTP Client
-export { HttpClient } from "./common/http-client.js";
+export { HttpClient, redactUrlForLog } from "./common/http-client.js";
 export type {
   AuthProvider,
   HttpClientConfig,
@@ -131,7 +140,7 @@ export {
 export type { PaginatedResponse, RequestOptions } from "./common/types.js";
 
 // Codegen
-export { parseSpec } from "./codegen/parser.js";
+export { parseSpec, pickJsonMediaType } from "./codegen/parser.js";
 export type {
   ParsedSpec,
   ParsedEndpoint,

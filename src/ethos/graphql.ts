@@ -4,7 +4,9 @@
  * Sends queries to POST /graphql with automatic auth via HttpClient.
  */
 
+import { BannerError } from "../common/errors.js";
 import type { HttpClient } from "../common/http-client.js";
+import { readJson } from "../common/json.js";
 import type { RequestOptions } from "../common/types.js";
 
 /** A GraphQL request payload. */
@@ -32,9 +34,13 @@ export interface GraphQLError {
  * Client for the Ethos GraphQL endpoint.
  *
  * @example
+ * Ethos GraphQL exposes each resource as a version-suffixed field
+ * (e.g. `persons12`, `sections16`); an unversioned field such as `persons`
+ * fails validation and comes back in `errors` with HTTP 200.
+ *
  * ```ts
  * const result = await client.graphql.query({
- *   query: '{ persons { edges { node { id names { firstName lastName } } } } }',
+ *   query: '{ persons12 { edges { node { id names { firstName lastName } } } } }',
  * });
  * ```
  */
@@ -57,6 +63,12 @@ export class EthosGraphQL {
       options,
       { idempotent: true },
     );
-    return response.json() as Promise<GraphQLResponse<T>>;
+    // readJson throws BannerError (body kept in responseBody, not the message)
+    // instead of a SyntaxError quoting the body on a non-JSON response.
+    const body = await readJson<GraphQLResponse<T> | undefined>(response);
+    if (!body || typeof body !== "object") {
+      throw new BannerError("Expected a JSON object from /graphql", response.status);
+    }
+    return body;
   }
 }

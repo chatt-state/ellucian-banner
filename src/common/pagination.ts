@@ -8,6 +8,7 @@
  */
 
 import { BannerError } from "./errors.js";
+import { readJson } from "./json.js";
 import type { PaginatedResponse } from "./types.js";
 
 /** Default number of items per page. */
@@ -34,7 +35,10 @@ export async function parsePaginatedResponse<T>(
   offset: number,
   limit?: number,
 ): Promise<PaginatedResponse<T>> {
-  const body = (await response.json()) as unknown;
+  // readJson throws a BannerError with a generic message on a non-JSON body
+  // (the raw text stays in responseBody), instead of a SyntaxError whose
+  // message would quote the start of the body.
+  const body = await readJson<unknown>(response);
   if (!Array.isArray(body)) {
     throw new BannerError(
       `Expected a JSON array from a list endpoint, got ${body === null ? "null" : typeof body}`,

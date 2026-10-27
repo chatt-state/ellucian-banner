@@ -1,3 +1,4 @@
+import { checkBaseUrl } from "../common/url.js";
 import type { BannerAuthConfig } from "./types.js";
 
 /**
@@ -27,6 +28,15 @@ export class BannerAuth {
 
     if (missing.length > 0) {
       throw new Error(`BannerAuth: missing required configuration: ${missing.join(", ")}`);
+    }
+
+    // Basic auth sends the password on every request: insist on HTTPS and a
+    // plain origin(+path) base URL.
+    const problem = checkBaseUrl(baseUrl as string, {
+      allowInsecureHttp: config.allowInsecureHttp,
+    });
+    if (problem) {
+      throw new Error(`BannerAuth: ${problem}`);
     }
 
     // After validation we know these are defined; assert for TypeScript

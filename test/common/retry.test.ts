@@ -242,8 +242,8 @@ describe("HttpClient with retry", () => {
   });
 
   it("should throw after max retries exhausted", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500, statusText: "Internal Server Error" }),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response("error", { status: 500, statusText: "Internal Server Error" }),
     );
 
     const client = new HttpClient({

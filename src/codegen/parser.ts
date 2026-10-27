@@ -12,6 +12,12 @@ export interface ParsedSpec {
   basePath: string;
   endpoints: ParsedEndpoint[];
   schemas: Map<string, ParsedSchema>;
+  /**
+   * Problems found while parsing that did not stop generation, e.g. a path
+   * placeholder with no matching path parameter (one is synthesized as a
+   * required string). The CLI prints these to stderr.
+   */
+  warnings?: string[];
 }
 
 export interface ParsedEndpoint {
@@ -73,9 +79,25 @@ export function parseSpec(spec: SpecJson): ParsedSpec {
     ? parseSchemas(spec["definitions"] ?? {})
     : parseSchemas(spec["components"]?.["schemas"] ?? {});
 
-  const endpoints = parseEndpoints(spec["paths"] ?? {}, isSwagger2, schemas);
+  const sharedParameters: SpecJson = isSwagger2
+    ? (spec["parameters"] ?? {})
+    : (spec["components"]?.["parameters"] ?? {});
+  const sharedRequestBodies: SpecJson = isSwagger2
+    ? {}
+    : (spec["components"]?.["requestBodies"] ?? {});
+  const sharedResponses: SpecJson = isSwagger2
+    ? (spec["responses"] ?? {})
+    : (spec["components"]?.["responses"] ?? {});
 
-  return { title, basePath, endpoints, schemas };
+  const warnings: string[] = [];
+  const endpoints = parseEndpoints(spec["paths"] ?? {}, isSwagger2, {
+    parameters: sharedParameters,
+    requestBodies: sharedRequestBodies,
+    responses: sharedResponses,
+    warnings,
+  });
+
+  return { title, basePath, endpoints, schemas, warnings };
 }
 
 // ── Helpers ──
@@ -145,10 +167,18 @@ function parseSchemaDef(def: SpecJson, name?: string): ParsedSchema {
   return schema;
 }
 
+/** Reusable spec components that `$ref`s may point into. */
+interface SpecComponents {
+  parameters: SpecJson;
+  requestBodies: SpecJson;
+  responses: SpecJson;
+  warnings: string[];
+}
+
 function parseEndpoints(
   paths: SpecJson,
   isSwagger2: boolean,
-  schemas: Map<string, ParsedSchema>,
+  components: SpecComponents,
 ): ParsedEndpoint[] {
   const endpoints: ParsedEndpoint[] = [];
 
@@ -157,9 +187,13 @@ function parseEndpoints(
       const op = (pathItem as SpecJson)[method] as SpecJson | undefined;
       if (!op) continue;
 
-      const parameters = parseParameters(op, isSwagger2);
-      const requestBody = isSwagger2 ? extractSwagger2Body(op) : extractOpenApi3Body(op, schemas);
-      const responseSchema = extractResponseSchema(op, isSwagger2, schemas);
+      const rawParams = mergeParameters(pathItem as SpecJson, op, components);
+      const parameters = parseParameters(rawParams, isSwagger2);
+      addMissingPathParameters(method, path, parameters, components.warnings);
+      const requestBody = isSwagger2
+        ? extractSwagger2Body(rawParams)
+        : extractOpenApi3Body(op, components);
+      const responseSchema = extractResponseSchema(op, isSwagger2, components);
 
       endpoints.push({
         method,
@@ -177,8 +211,60 @@ function parseEndpoints(
   return endpoints;
 }
 
-function parseParameters(op: SpecJson, isSwagger2: boolean): ParsedParameter[] {
-  const raw = (op["parameters"] as SpecJson[]) ?? [];
+/** Follow a local `$ref` ("#/parameters/id", "#/components/parameters/id") into `pool`. */
+function resolveRef(value: SpecJson, pool: SpecJson): SpecJson | undefined {
+  let current: SpecJson | undefined = value;
+  // Bounded to avoid looping on a self-referencing spec.
+  for (let depth = 0; current && typeof current["$ref"] === "string" && depth < 10; depth++) {
+    current = pool[extractRefName(current["$ref"] as string)] as SpecJson | undefined;
+  }
+  return current;
+}
+
+/**
+ * Path-item parameters merged with operation parameters (the operation wins
+ * on the same name + location), with `$ref` parameters resolved.
+ */
+function mergeParameters(pathItem: SpecJson, op: SpecJson, components: SpecComponents): SpecJson[] {
+  const merged = new Map<string, SpecJson>();
+  const add = (list: unknown) => {
+    if (!Array.isArray(list)) return;
+    for (const raw of list as SpecJson[]) {
+      const p = resolveRef(raw, components.parameters);
+      if (!p) {
+        components.warnings.push(`Unresolvable parameter reference: ${String(raw?.["$ref"])}`);
+        continue;
+      }
+      merged.set(`${String(p["in"])}:${String(p["name"])}`, p);
+    }
+  };
+  add(pathItem["parameters"]);
+  add(op["parameters"]);
+  return [...merged.values()];
+}
+
+/**
+ * Every `{name}` placeholder in the path needs a path parameter, or the
+ * generated method would request the literal "{name}". Synthesize a required
+ * string parameter for any that are missing and record a warning.
+ */
+function addMissingPathParameters(
+  method: string,
+  path: string,
+  params: ParsedParameter[],
+  warnings: string[],
+): void {
+  for (const match of path.matchAll(/\{([^{}]+)\}/g)) {
+    const name = match[1] as string;
+    if (params.some((p) => p.in === "path" && p.name === name)) continue;
+    warnings.push(
+      `${method.toUpperCase()} ${path}: placeholder {${name}} has no path parameter; generating a required string parameter`,
+    );
+    params.push({ name, in: "path", required: true, type: "string" });
+  }
+}
+
+function parseParameters(raw: SpecJson[], isSwagger2: boolean): ParsedParameter[] {
   const params: ParsedParameter[] = [];
 
   for (const p of raw) {
@@ -198,34 +284,57 @@ function parseParameters(op: SpecJson, isSwagger2: boolean): ParsedParameter[] {
   return params;
 }
 
-function extractSwagger2Body(op: SpecJson): ParsedSchema | undefined {
-  const params = (op["parameters"] as SpecJson[]) ?? [];
+/** Schema used when a body exists but its schema is missing or not JSON. */
+const UNKNOWN_SCHEMA: ParsedSchema = { type: "unknown" };
+
+function extractSwagger2Body(params: SpecJson[]): ParsedSchema | undefined {
   const bodyParam = params.find((p) => p["in"] === "body");
-  if (!bodyParam?.["schema"]) return undefined;
+  if (!bodyParam) return undefined;
+  if (!bodyParam["schema"]) return { ...UNKNOWN_SCHEMA };
   return parseSchemaDef(bodyParam["schema"] as SpecJson);
 }
 
-function extractOpenApi3Body(
-  op: SpecJson,
-  _schemas: Map<string, ParsedSchema>,
-): ParsedSchema | undefined {
-  const content = op["requestBody"]?.["content"];
-  if (!content) return undefined;
-  const json = content["application/json"];
-  if (!json?.["schema"]) return undefined;
-  return parseSchemaDef(json["schema"] as SpecJson);
+/**
+ * Pick the JSON-like media type from an OpenAPI 3 `content` map:
+ * `application/json`, then any `+json` / `/json` type (e.g.
+ * `application/vnd.hedtech.integration.v12+json`), then `*\/*`.
+ */
+export function pickJsonMediaType(content: SpecJson | undefined): SpecJson | undefined {
+  if (!content || typeof content !== "object") return undefined;
+  const keys = Object.keys(content);
+  const base = (k: string) => k.split(";")[0]!.trim().toLowerCase();
+  const key =
+    keys.find((k) => base(k) === "application/json") ??
+    keys.find((k) => base(k).endsWith("+json") || base(k).endsWith("/json")) ??
+    keys.find((k) => base(k) === "*/*" || base(k) === "application/*");
+  return key === undefined ? undefined : (content[key] as SpecJson);
+}
+
+function extractOpenApi3Body(op: SpecJson, components: SpecComponents): ParsedSchema | undefined {
+  if (!op["requestBody"]) return undefined;
+  const requestBody = resolveRef(op["requestBody"] as SpecJson, components.requestBodies);
+  const media = pickJsonMediaType(requestBody?.["content"]);
+  // A body exists: never drop it, even if its schema is unusable.
+  if (!media?.["schema"]) return { ...UNKNOWN_SCHEMA };
+  return parseSchemaDef(media["schema"] as SpecJson);
 }
 
 function extractResponseSchema(
   op: SpecJson,
   isSwagger2: boolean,
-  _schemas: Map<string, ParsedSchema>,
+  components: SpecComponents,
 ): ParsedSchema | undefined {
   const responses = op["responses"] as SpecJson | undefined;
   if (!responses) return undefined;
 
-  // Look for 200 or 201 response
-  const successResponse = (responses["200"] ?? responses["201"]) as SpecJson | undefined;
+  // Prefer 200, then 201, then any other 2xx.
+  const successKey =
+    ["200", "201"].find((k) => k in responses) ??
+    Object.keys(responses)
+      .filter((k) => /^2(\d\d|XX)$/i.test(k))
+      .sort()[0];
+  if (successKey === undefined) return undefined;
+  const successResponse = resolveRef(responses[successKey] as SpecJson, components.responses);
   if (!successResponse) return undefined;
 
   if (isSwagger2) {
@@ -234,9 +343,9 @@ function extractResponseSchema(
   }
 
   // OpenAPI 3.x
-  const content = successResponse["content"]?.["application/json"];
-  if (!content?.["schema"]) return undefined;
-  return parseSchemaDef(content["schema"] as SpecJson);
+  const media = pickJsonMediaType(successResponse["content"]);
+  if (!media?.["schema"]) return undefined;
+  return parseSchemaDef(media["schema"] as SpecJson);
 }
 
 function extractRefName(ref: string): string {
