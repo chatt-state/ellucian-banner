@@ -28,6 +28,11 @@ describe("HttpClient refuses paths that leave the base URL", () => {
     ["/%2E./x"],
     ["/./x"],
     ["/a\\..\\b"],
+    // Control-char traversal: WHATWG URL strips tab/CR, so these collapse to a
+    // dot segment after the check unless rejected outright (SEC-3).
+    ["/..\t/x"],
+    ["/.\r./x"],
+    ["/..\n/consume"],
   ])("rejects %s without sending a request", async (path) => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok());
     await expect(client().get(path)).rejects.toBeInstanceOf(TypeError);
@@ -86,6 +91,22 @@ describe("checkRequestPath / isUnsafePathSegment", () => {
       expect(isUnsafePathSegment(value)).toBe(false);
     },
   );
+});
+
+describe("checkRequestPath rejects control-character traversal (SEC-3)", () => {
+  it.each([
+    ["/%2e%2e/x"],
+    ["/.\t./x"],
+    ["/..\r/consume"],
+    ["/api/per\u0000sons"],
+    ["/api/\u007f/x"],
+  ])("rejects %j", (path) => {
+    expect(checkRequestPath(path)).toBeDefined();
+  });
+
+  it("still accepts a clean path and query", () => {
+    expect(checkRequestPath("/api/persons/abc-123?criteria=%7B%7D")).toBeUndefined();
+  });
 });
 
 describe("base URL validation (TLS required)", () => {

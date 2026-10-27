@@ -55,10 +55,22 @@ export function checkBaseUrl(raw: string, options: BaseUrlOptions = {}): string 
  * The path must start with a single `/`, and must not contain backslashes or
  * dot segments (`.`, `..`, or their percent-encoded forms), which WHATWG URL
  * parsing would collapse. Only the part before `?`/`#` is checked.
+ *
+ * Control characters are rejected outright: WHATWG URL parsing silently strips
+ * tab, LF and CR from anywhere in a URL, so a segment such as `.<TAB>.` would
+ * slip past the dot-segment check below and then collapse to `..` once parsed
+ * (a parser-differential path-traversal bypass). Legitimate paths never carry
+ * raw control bytes — they are percent-encoded.
  */
 export function checkRequestPath(path: string): string | undefined {
   if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//")) {
     return 'request path must start with a single "/"';
+  }
+  for (let i = 0; i < path.length; i++) {
+    const code = path.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) {
+      return "request path must not contain control characters";
+    }
   }
   const pathPart = path.split(/[?#]/, 1)[0] ?? "";
   if (pathPart.includes("\\")) {

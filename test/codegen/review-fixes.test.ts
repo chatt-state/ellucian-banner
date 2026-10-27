@@ -250,6 +250,18 @@ describe("spec paths cannot inject code", () => {
     expect(files.client).toContain('"/x/$" + encodeURIComponent(String(processExit))');
   });
 
+  it("yields a safe literal for a spec path with backtick / ${ / backslash (SEC-1)", () => {
+    // Backtick and backslash can close or escape a string literal -> rejected.
+    for (const p of ["/x/`+a+`", "/x/a\\b"]) {
+      expect(() => generateClient(parseSpec(specWith(p)), "Evil")).toThrow(/Unsafe characters/);
+    }
+    // A surviving "${...}" is emitted as an ordinary quoted literal, not code.
+    const { client } = generateClient(parseSpec(specWith("/x/${global.process.exit()}")), "Evil");
+    expect(client).not.toContain("`");
+    expect(client).not.toContain("${");
+    expect(client).toContain("encodeURIComponent(");
+  });
+
   it("emits static path text only as JSON string literals", () => {
     const parsed = parseSpec({
       swagger: "2.0",

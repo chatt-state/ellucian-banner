@@ -246,13 +246,16 @@ export class HttpClient {
    * Join the base URL and a request path, refusing anything that could leave
    * the base URL: a path without a leading "/" (which would change the host,
    * e.g. ".evil.example" or "@evil.example"), protocol-relative "//" paths,
-   * backslashes, and dot segments.
+   * backslashes, control characters, and dot segments.
+   *
+   * The boundary is enforced on the *parsed* URL (origin + base path prefix)
+   * and the normalized `href` is what gets fetched, so the URL validated here
+   * and the URL sent on the wire can never diverge.
    */
   private resolveUrl(path: string): string {
     const problem = checkRequestPath(path);
     if (problem) throw new TypeError(`HttpClient: ${problem}`);
-    const url = `${this.baseUrl}${path}`;
-    const parsed = new URL(url);
+    const parsed = new URL(`${this.baseUrl}${path}`);
     const withinBase =
       this.basePathname === "" ||
       parsed.pathname === this.basePathname ||
@@ -260,7 +263,7 @@ export class HttpClient {
     if (parsed.origin !== this.baseOrigin || !withinBase) {
       throw new TypeError("HttpClient: request path resolves outside the configured baseUrl");
     }
-    return url;
+    return parsed.href;
   }
 
   /** Merge auth, caller, and per-request headers. */

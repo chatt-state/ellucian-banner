@@ -13,12 +13,30 @@ import { isUnsafePathSegment } from "../common/url.js";
 /** EEDM resource names: letters, digits, "-" and "_" (e.g. "section-registrations"). */
 const RESOURCE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
+/**
+ * Validate a single URL path segment, returning its trimmed value.
+ *
+ * Throws a {@link TypeError} when `value` is empty/whitespace-only, is made up
+ * entirely of dots (".", "..", "...", or their percent-encoded forms), or
+ * contains a path separator ("/" or "\"). `encodeURIComponent` leaves "." and
+ * ".." untouched, and WHATWG URL parsing then collapses them, so such segments
+ * must be rejected before a request path is built — a missing guard would let
+ * `itemPath("..", "consume")` reach `/consume` with the tenant token.
+ */
+export function assertSafeSegment(value: unknown, label = "path segment"): string {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    throw new TypeError(`Ethos ${label} is required`);
+  }
+  const trimmed = String(value).trim();
+  if (isUnsafePathSegment(trimmed) || /^\.+$/.test(trimmed)) {
+    throw new TypeError(`Ethos ${label} must not be empty, all dots, or contain '/' or '\\'`);
+  }
+  return trimmed;
+}
+
 /** Validate and return a trimmed Ethos resource name. */
 export function resourceName(resource: string): string {
-  if (typeof resource !== "string" || resource.trim() === "") {
-    throw new TypeError("Ethos resource name is required");
-  }
-  const trimmed = resource.trim();
+  const trimmed = assertSafeSegment(resource, "resource name");
   if (!RESOURCE_NAME.test(trimmed)) {
     throw new TypeError(
       "Ethos resource name must contain only letters, digits, '-' and '_' (e.g. \"persons\")",
@@ -34,13 +52,7 @@ export function collectionPath(resource: string): string {
 
 /** `/api/{resource}/{id}` with both segments validated and the id encoded. */
 export function itemPath(resource: string, id: string): string {
-  if (id === undefined || id === null || String(id).trim() === "") {
-    throw new TypeError("Ethos resource id is required");
-  }
-  const value = String(id);
-  if (isUnsafePathSegment(value)) {
-    throw new TypeError("Ethos resource id must not be '.', '..', or contain '/' or '\\'");
-  }
+  const value = assertSafeSegment(id, "resource id");
   return `${collectionPath(resource)}/${encodeURIComponent(value)}`;
 }
 
