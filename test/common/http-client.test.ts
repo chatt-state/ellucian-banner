@@ -227,8 +227,23 @@ describe("HttpClient", () => {
     expect(stderrSpy).not.toHaveBeenCalled();
   });
 
+  it("ignores generic DEBUG values (1, true, *) so broad debug flags do not enable it", async () => {
+    for (const value of ["1", "true", "*"]) {
+      vi.stubEnv("DEBUG", value);
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
+      const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const client = new HttpClient({
+        baseUrl: "https://api.example.com",
+        authProvider: () => "Bearer test-token",
+      });
+      await client.get("/test");
+      expect(stderrSpy).not.toHaveBeenCalled();
+      stderrSpy.mockRestore();
+    }
+  });
+
   it("should fall back to DEBUG env var for debug logging", async () => {
-    vi.stubEnv("DEBUG", "true");
+    vi.stubEnv("DEBUG", "ellucian-banner");
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("{}", { status: 200 }));
     const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 

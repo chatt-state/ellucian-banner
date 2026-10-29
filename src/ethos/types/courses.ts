@@ -1,11 +1,12 @@
 /**
- * EEDM Courses resource types (v4 / v6 compatible).
+ * EEDM Courses resource types (v6).
  *
  * Represents course catalog entries -- the smallest unit of instruction for
  * which an organization grants credits. Courses are offered as sections during
  * academic periods.
  *
- * The v4 schema is a subset of v6. These types cover both versions.
+ * Ethos publishes courses v6, v8, v16.0.0 and v16.1.0 (there is no v4). These
+ * types describe the v6 representation, which `EthosClient.courses` requests.
  *
  * @see https://resources.elluciancloud.com/ethos-data-model
  */
@@ -39,7 +40,7 @@ export interface CourseSubject {
 // ---------------------------------------------------------------------------
 
 /**
- * A course catalog entry (EEDM courses v4).
+ * A course catalog entry (EEDM courses v6).
  *
  * Describes the subject, numbering, credit specifications, and scheduling
  * window for a course as it appears in the institution's catalog.

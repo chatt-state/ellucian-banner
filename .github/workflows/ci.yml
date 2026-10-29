@@ -5,14 +5,24 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18.x, 22.x]
+        # eslint 10 and vitest 4 require Node >= 20
+        node-version: [20.x, 22.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +33,31 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      # `npm ci` also runs the `prepare` script, which builds dist/
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
-      - run: npm run test
+      - run: npm test
+
+      - name: Verify package contents and git-dependency install
+        run: |
+          set -euo pipefail
+          # npm pack runs `prepare` (tsup), which writes to stdout, so pack into
+          # a dedicated directory instead of capturing the tarball name.
+          packdir="$RUNNER_TEMP/pack"
+          mkdir -p "$packdir"
+          npm pack --pack-destination "$packdir" > /dev/null
+          tarball="$(ls "$packdir"/*.tgz)"
+          tar -tzf "$tarball" | tee /tmp/pack.txt
+          grep -q 'package/dist/index.js$' /tmp/pack.txt
+          grep -q 'package/dist/index.cjs$' /tmp/pack.txt
+          grep -q 'package/dist/index.d.ts$' /tmp/pack.txt
+          grep -q 'package/dist/codegen/cli.js$' /tmp/pack.txt
+          scratch="$(mktemp -d)"
+          cd "$scratch"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$tarball"
+          node --input-type=module -e "import { EthosClient } from 'ellucian-banner'; if (typeof EthosClient !== 'function') process.exit(1);"
+          node -e "const { EthosClient } = require('ellucian-banner'); if (typeof EthosClient !== 'function') process.exit(1);"
+          ./node_modules/.bin/ellucian-banner-codegen --help

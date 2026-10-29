@@ -6,6 +6,8 @@
  * parses a fetch Response and returns the correct error subclass.
  */
 
+import { parseRetryAfter } from "./retry.js";
+
 /** Base error for all Banner SDK errors. */
 export class BannerError extends Error {
   /** The error class name (e.g., "AuthError", "NotFoundError"). */
@@ -63,6 +65,19 @@ export class ValidationError extends BannerError {
   }
 }
 
+/** The request did not complete within the configured timeout. */
+export class TimeoutError extends BannerError {
+  override readonly name = "TimeoutError";
+
+  constructor(
+    message: string,
+    /** The timeout that elapsed, in milliseconds. */
+    public readonly timeoutMs?: number,
+  ) {
+    super(message);
+  }
+}
+
 /** Server-side error (5xx). */
 export class ServerError extends BannerError {
   override readonly name = "ServerError";
@@ -88,9 +103,13 @@ export async function fromResponse(response: Response): Promise<BannerError> {
     // body unavailable
   }
 
-  const message = body
-    ? `${status} ${statusText}: ${truncate(body, 200)}`
-    : `${status} ${statusText}`;
+  // The message never includes body text: Ethos/Banner error bodies often echo
+  // submitted person data, and applications routinely log err.message. Only
+  // machine-readable error codes (e.g. "Global.Internal.Error") are appended.
+  // The raw body stays available, unredacted, in `responseBody`.
+  const codes = body ? errorCodes(body) : [];
+  const statusLine = `${status} ${statusText}`.trim();
+  const message = codes.length > 0 ? `${statusLine} (${codes.join(", ")})` : statusLine;
 
   if (status === 400) {
     return new ValidationError(message, body);
@@ -102,8 +121,10 @@ export async function fromResponse(response: Response): Promise<BannerError> {
     return new NotFoundError(message, body);
   }
   if (status === 429) {
-    const retryAfter = parseInt(response.headers.get("retry-after") ?? "", 10);
-    return new RateLimitError(message, isNaN(retryAfter) ? undefined : retryAfter, body);
+    // Retry-After may be delay-seconds or an HTTP-date; normalize to seconds.
+    const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+    const retryAfter = retryAfterMs === undefined ? undefined : Math.ceil(retryAfterMs / 1000);
+    return new RateLimitError(message, retryAfter, body);
   }
   if (status >= 500) {
     return new ServerError(message, status, body);
@@ -112,8 +133,31 @@ export async function fromResponse(response: Response): Promise<BannerError> {
   return new BannerError(message, status, body);
 }
 
-/** Truncates a string to maxLen, appending "..." if truncated. */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + "...";
+/** Shape of a machine-readable error code: no spaces, so no free text or names. */
+const ERROR_CODE = /^[A-Za-z][A-Za-z0-9._:-]{0,79}$/;
+
+/**
+ * Extract error codes from an Ethos-style error body
+ * (`{ "errors": [{ "code": "...", "message": "..." }] }` or a bare array).
+ * Messages and descriptions are deliberately ignored: they can echo PII.
+ */
+function errorCodes(body: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return [];
+  }
+  const list = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { errors?: unknown }).errors)
+      ? (parsed as { errors: unknown[] }).errors
+      : [];
+  const codes = new Set<string>();
+  for (const entry of list) {
+    const code = (entry as { code?: unknown } | null)?.code;
+    if (typeof code === "string" && ERROR_CODE.test(code)) codes.add(code);
+    if (codes.size >= 5) break;
+  }
+  return [...codes];
 }

@@ -17,10 +17,13 @@ describe("EthosAuth", () => {
     const token = await auth.getToken();
 
     expect(token).toBe(mockToken);
-    expect(fetch).toHaveBeenCalledWith("https://integrate.elluciancloud.com/auth", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${mockApiKey}` },
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://integrate.elluciancloud.com/auth",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: `Bearer ${mockApiKey}` },
+      }),
+    );
   });
 
   it("should cache token on subsequent calls", async () => {
@@ -67,10 +70,13 @@ describe("EthosAuth", () => {
     const token = await auth.getToken();
 
     expect(token).toBe("env-token");
-    expect(fetch).toHaveBeenCalledWith("https://integrate.elluciancloud.com/auth", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${envKey}` },
-    });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://integrate.elluciancloud.com/auth",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: `Bearer ${envKey}` },
+      }),
+    );
   });
 
   it("should throw AuthError when no apiKey and no env var", () => {

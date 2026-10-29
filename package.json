@@ -1,6 +1,6 @@
 {
   "name": "ellucian-banner",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node.js/TypeScript SDK for Ellucian Banner — Ethos Integration and native Banner REST APIs",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -16,26 +16,30 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "ellucian-banner-codegen": "./dist/codegen/cli.js"
   },
   "files": [
     "dist",
+    "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "prepare": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/ test/ && prettier --check src/ test/",
     "lint:fix": "eslint --fix src/ test/ && prettier --write src/ test/",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "pack:check": "npm pack --dry-run"
   },
   "keywords": [
     "ellucian",
@@ -52,8 +56,12 @@
     "type": "git",
     "url": "https://github.com/chatt-state/ellucian-banner.git"
   },
+  "bugs": {
+    "url": "https://github.com/chatt-state/ellucian-banner/issues"
+  },
+  "homepage": "https://github.com/chatt-state/ellucian-banner#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

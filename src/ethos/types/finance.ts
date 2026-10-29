@@ -1,7 +1,7 @@
 /**
  * EEDM Finance resource types.
  *
- * Covers accounting strings (v12) and ledger activities used for
+ * Covers accounting strings (v7) and ledger activities used for
  * institutional financial record keeping.
  *
  * @see https://resources.elluciancloud.com/ethos-data-model
@@ -10,7 +10,7 @@
 import type { EedmMetadata, GuidRef } from "./common.js";
 
 // ---------------------------------------------------------------------------
-// Accounting String (v12)
+// Accounting String (v7)
 // ---------------------------------------------------------------------------
 
 /** A component of an accounting string (e.g., fund, org, account). */
@@ -26,7 +26,7 @@ export interface AccountingStringComponent {
 }
 
 /**
- * An accounting string (EEDM accounting-strings v12).
+ * An accounting string (EEDM accounting-strings v7, the only published version).
  *
  * Represents a chart-of-accounts string used for tracking financial
  * transactions within the institution's general ledger.

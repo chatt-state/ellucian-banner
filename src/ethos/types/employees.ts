@@ -1,7 +1,7 @@
 /**
  * EEDM HR resource types.
  *
- * Covers employees (v12), positions, and jobs used for
+ * Covers employees (v12), institution-positions (v12) and institution-jobs (v12) used for
  * human resources management.
  *
  * @see https://resources.elluciancloud.com/ethos-data-model
@@ -50,7 +50,7 @@ export interface EmployeeContract {
 // ---------------------------------------------------------------------------
 
 /**
- * A position (EEDM positions v12).
+ * A position (EEDM `institution-positions` v12).
  *
  * Represents an institutional position that can be filled by an employee.
  */
@@ -86,7 +86,7 @@ export interface Position {
 // ---------------------------------------------------------------------------
 
 /**
- * A job assignment (EEDM jobs v12).
+ * A job assignment (EEDM `institution-jobs` v12).
  *
  * Represents the assignment of a person to a specific position, including
  * pay information and schedule.

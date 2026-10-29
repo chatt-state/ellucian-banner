@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BannerClient, BannerApiClient } from "../../src/banner/client.js";
+import { BannerClient } from "../../src/banner/client.js";
 
 function mockJson(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status });

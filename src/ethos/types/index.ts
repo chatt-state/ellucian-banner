@@ -48,7 +48,7 @@ export type {
   StudentType,
 } from "./students.js";
 
-// Courses (v4)
+// Courses (v6)
 export type { Course, CourseSubject } from "./courses.js";
 
 // Sections (v16)
@@ -105,6 +105,9 @@ export type {
 export type {
   FinancialAidApplication,
   FinancialAidAward,
+  FinancialAidAwardAmount,
+  FinancialAidAwardPeriodStatus,
+  FinancialAidAwardsByPeriod,
   FinancialAidFund,
 } from "./financial-aid.js";
 
@@ -117,9 +120,4 @@ export type {
 } from "./finance.js";
 
 // HR — Employees, Positions, Jobs (v12)
-export type {
-  Employee,
-  EmployeeContract,
-  Position,
-  Job,
-} from "./employees.js";
+export type { Employee, EmployeeContract, Position, Job } from "./employees.js";

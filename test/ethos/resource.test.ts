@@ -12,7 +12,16 @@ function createMockClient(): EthosResourceClient {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    filter: vi.fn(),
+    filterAll: vi.fn(),
+    namedQuery: vi.fn(),
+    namedQueryAll: vi.fn(),
+    qapi: { search: vi.fn(), searchAll: vi.fn() },
   };
+}
+
+async function* pages<T>(...batches: T[][]): AsyncGenerator<T[], void, unknown> {
+  for (const b of batches) yield b;
 }
 
 describe("EthosResource", () => {
@@ -115,7 +124,6 @@ describe("EthosResource", () => {
       vi.mocked(client.getAll).mockReturnValue(mockGetAll());
 
       const resource = new EthosResource(client, "persons", 12);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for await (const _page of resource.getAll(25, options)) {
         // consume
       }
@@ -176,6 +184,110 @@ describe("EthosResource", () => {
       await resource.delete("1");
 
       expect(client.delete).toHaveBeenCalledWith("persons", "1", 12, undefined);
+    });
+  });
+
+  describe("filtering and search use the bound version", () => {
+    const page: PaginatedResponse<{ id: string }> = {
+      data: [{ id: "r1" }],
+      totalCount: 1,
+      offset: 0,
+      hasMore: false,
+    };
+
+    it("filter passes criteria, paging and the bound version", async () => {
+      const client = createMockClient();
+      vi.mocked(client.filter).mockResolvedValue(page);
+      const resource = new EthosResource(client, "section-registrations", 16);
+      const criteria = { registrant: { id: "p1" } };
+      expect(await resource.filter(criteria, 0, 50)).toBe(page);
+      expect(client.filter).toHaveBeenCalledWith(
+        "section-registrations",
+        criteria,
+        0,
+        50,
+        16,
+        undefined,
+      );
+    });
+
+    it("filterAll delegates with the bound version", async () => {
+      const client = createMockClient();
+      vi.mocked(client.filterAll).mockReturnValue(pages([{ id: "a" }], [{ id: "b" }]));
+      const resource = new EthosResource(client, "sections", 16);
+      const seen: unknown[] = [];
+      for await (const batch of resource.filterAll({ academicPeriod: { id: "t" } }, 100)) {
+        seen.push(...batch);
+      }
+      expect(seen).toEqual([{ id: "a" }, { id: "b" }]);
+      expect(client.filterAll).toHaveBeenCalledWith(
+        "sections",
+        { academicPeriod: { id: "t" } },
+        100,
+        16,
+        undefined,
+      );
+    });
+
+    it("namedQuery forwards wrap options and the bound version", async () => {
+      const client = createMockClient();
+      vi.mocked(client.namedQuery).mockResolvedValue(page);
+      const resource = new EthosResource(client, "persons", 12);
+      await resource.namedQuery("personFilter", { id: "g" }, 0, 10, { wrap: false });
+      expect(client.namedQuery).toHaveBeenCalledWith(
+        "persons",
+        "personFilter",
+        { id: "g" },
+        0,
+        10,
+        12,
+        { wrap: false },
+      );
+    });
+
+    it("namedQueryAll delegates with the bound version", async () => {
+      const client = createMockClient();
+      vi.mocked(client.namedQueryAll).mockReturnValue(pages([{ id: "a" }]));
+      const resource = new EthosResource(client, "sections", 16);
+      const seen: unknown[] = [];
+      for await (const batch of resource.namedQueryAll("keywordSearch", "math", 25)) {
+        seen.push(...batch);
+      }
+      expect(seen).toEqual([{ id: "a" }]);
+      expect(client.namedQueryAll).toHaveBeenCalledWith(
+        "sections",
+        "keywordSearch",
+        "math",
+        25,
+        16,
+        undefined,
+      );
+    });
+
+    it("qapiSearch and qapiSearchAll go through client.qapi with the bound version", async () => {
+      const client = createMockClient();
+      vi.mocked(client.qapi.search).mockResolvedValue(page);
+      vi.mocked(client.qapi.searchAll).mockReturnValue(pages([{ id: "a" }]));
+      const resource = new EthosResource(client, "persons", 12);
+      await resource.qapiSearch({ names: [{ lastName: "Smith" }] }, 0, 25);
+      expect(client.qapi.search).toHaveBeenCalledWith(
+        "persons",
+        { names: [{ lastName: "Smith" }] },
+        0,
+        25,
+        12,
+        undefined,
+      );
+      for await (const _batch of resource.qapiSearchAll({}, 10)) {
+        // drain
+      }
+      expect(client.qapi.searchAll).toHaveBeenCalledWith("persons", {}, 10, 12, undefined);
+    });
+
+    it("exposes the resource name and bound version", () => {
+      const resource = new EthosResource(createMockClient(), "grade-definitions", 6);
+      expect(resource.name).toBe("grade-definitions");
+      expect(resource.boundVersion).toBe(6);
     });
   });
 });

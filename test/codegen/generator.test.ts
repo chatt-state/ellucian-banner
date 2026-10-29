@@ -23,9 +23,7 @@ const SWAGGER_2_SPEC = {
         operationId: "listStudents",
         summary: "List all students",
         tags: ["students"],
-        parameters: [
-          { name: "limit", in: "query", type: "integer", required: false },
-        ],
+        parameters: [{ name: "limit", in: "query", type: "integer", required: false }],
         responses: {
           "200": {
             schema: { type: "array", items: { $ref: "#/definitions/Student" } },
@@ -54,9 +52,7 @@ const SWAGGER_2_SPEC = {
         operationId: "getStudent",
         summary: "Get a student by ID",
         tags: ["students"],
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true },
-        ],
+        parameters: [{ name: "id", in: "path", type: "string", required: true }],
         responses: {
           "200": { schema: { $ref: "#/definitions/Student" } },
         },
@@ -64,9 +60,7 @@ const SWAGGER_2_SPEC = {
       delete: {
         operationId: "deleteStudent",
         tags: ["students"],
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true },
-        ],
+        parameters: [{ name: "id", in: "path", type: "string", required: true }],
         responses: { "204": {} },
       },
     },
@@ -113,15 +107,16 @@ describe("generateClient", () => {
     });
 
     it("generates class extending BannerApiClient", () => {
-      expect(result.client).toContain(
-        "export class StudentApiClient extends BannerApiClient {",
-      );
+      expect(result.client).toContain("export class StudentApiClient extends BannerApiClient {");
     });
 
     it("generates listStudents method", () => {
       expect(result.client).toContain("async listStudents(");
       expect(result.client).toContain("Promise<Student[]>");
-      expect(result.client).toContain('this.get<Student[]>("/students"');
+      expect(result.client).toContain(
+        'this.get<Student[]>(this.withQuery("/students", query), options)',
+      );
+      expect(result.client).toContain("query?: { limit?: number }");
     });
 
     it("generates createStudent method with body", () => {
@@ -132,7 +127,9 @@ describe("generateClient", () => {
 
     it("generates getStudent method with path param", () => {
       expect(result.client).toContain("async getStudent(id: string");
-      expect(result.client).toContain("this.get<Student>(`/students/${id}`");
+      expect(result.client).toContain(
+        'this.get<Student>("/students/" + encodeURIComponent(String(id)), options)',
+      );
     });
 
     it("generates deleteStudent method returning void", () => {
@@ -176,5 +173,60 @@ describe("generateClient", () => {
     const p = parseSpec(spec);
     const r = generateClient(p, "Test");
     expect(r.client).toContain("async getThingsById(");
+  });
+});
+
+describe("generateClient edge cases", () => {
+  const spec = {
+    swagger: "2.0",
+    info: { title: "Edge", version: "1.0" },
+    basePath: "/Edge/api",
+    definitions: {},
+    paths: {
+      "/terms/{term-code}/close": {
+        post: {
+          operationId: "closeTerm",
+          summary: "Close a term */ injected();",
+          parameters: [
+            { name: "term-code", in: "path", type: "string", required: true },
+            { name: "dry-run", in: "query", type: "boolean", required: true },
+          ],
+          responses: { "200": { schema: { type: "object" } } },
+        },
+      },
+      "/things": {
+        patch: {
+          operationId: "patchThings",
+          parameters: [{ in: "body", name: "body", schema: { type: "object" } }],
+          responses: { "200": { schema: { type: "object" } } },
+        },
+      },
+    },
+  };
+  const out = generateClient(parseSpec(spec), "Edge").client;
+
+  it("passes undefined as the body for body-less POSTs so options is not sent as the body", () => {
+    expect(out).toContain(", undefined, options);");
+  });
+
+  it("turns hyphenated path params into identifiers and encodes them", () => {
+    expect(out).toContain("async closeTerm(termCode: string");
+    expect(out).toContain("encodeURIComponent(String(termCode))");
+  });
+
+  it("quotes non-identifier query keys and keeps required query params required", () => {
+    expect(out).toContain('query: { "dry-run": boolean }');
+  });
+
+  it("generates PATCH methods", () => {
+    expect(out).toContain("this.patch<Record<string, unknown>>(");
+  });
+
+  it("neutralizes comment terminators in summaries", () => {
+    expect(out).not.toContain("*/ injected();");
+  });
+
+  it("records the spec basePath as a static property", () => {
+    expect(out).toContain('static readonly basePath = "/Edge/api";');
   });
 });
